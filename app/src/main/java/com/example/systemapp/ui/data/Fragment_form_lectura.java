@@ -256,6 +256,12 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     private static final float SWIPE_SENSITIVITY = 0.6f; // 60% del desplazamiento del dedo
     private static final float SWIPE_SNAP_THRESHOLD = 0.3f; // 30% del ancho de pantalla
 
+    // Variables para efecto carousel (vista previa)
+    private View nextPreviewCard;
+    private View prevPreviewCard;
+    private TextView nextPreviewText;
+    private TextView prevPreviewText;
+
 
     @Nullable
     @Override
@@ -707,6 +713,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
         // ✅ CONFIGURAR GESTOS DE SWIPE (agregar antes de return root;)
         setupSwipeGesture(root);
+
+        // ✅ CONFIGURAR VISTAS DE PREVIEW PARA EFECTO CAROUSEL
+        setupCarouselPreview(root);
 
         return root;
     }
@@ -2181,6 +2190,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                             isHorizontalScroll = true;
                             isSwiping = true;
                             v.getParent().requestDisallowInterceptTouchEvent(true);
+
+                            // Actualizar contenido de las vistas de preview
+                            updatePreviewContent();
                         }
 
                         if (isHorizontalScroll && isSwiping) {
@@ -2198,6 +2210,31 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                             // Aplicar translación al contenido
                             contentView.setTranslationX(translation);
                             currentTranslationX = translation;
+
+                            // ✨ EFECTO CAROUSEL: Mover vistas de preview
+                            if (translation > 0) {
+                                // Deslizando a la derecha -> mostrar preview ANTERIOR (izquierda)
+                                if (posicion > 0 && prevPreviewCard != null) {
+                                    prevPreviewCard.setVisibility(View.VISIBLE);
+                                    prevPreviewCard.setAlpha(Math.min(translation / (screenWidth * 0.3f), 1f));
+                                    prevPreviewCard.setTranslationX(-screenWidth + translation);
+                                }
+                                // Ocultar preview siguiente
+                                if (nextPreviewCard != null) {
+                                    nextPreviewCard.setVisibility(View.GONE);
+                                }
+                            } else if (translation < 0) {
+                                // Deslizando a la izquierda -> mostrar preview SIGUIENTE (derecha)
+                                if (posicion < allRutas.size() - 1 && nextPreviewCard != null) {
+                                    nextPreviewCard.setVisibility(View.VISIBLE);
+                                    nextPreviewCard.setAlpha(Math.min(Math.abs(translation) / (screenWidth * 0.3f), 1f));
+                                    nextPreviewCard.setTranslationX(screenWidth + translation);
+                                }
+                                // Ocultar preview anterior
+                                if (prevPreviewCard != null) {
+                                    prevPreviewCard.setVisibility(View.GONE);
+                                }
+                            }
 
                             // Actualizar overlay con efecto de oscurecimiento
                             if (overlay != null) {
@@ -2226,6 +2263,97 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 return false;
             }
         });
+    }
+
+    /**
+     * Configura las vistas de preview para el efecto carousel
+     * Crea indicadores visuales que muestran el siguiente/anterior registro mientras deslizas
+     */
+    private void setupCarouselPreview(View rootView) {
+        // Obtener el FrameLayout raíz para agregar las vistas de preview
+        ViewGroup rootContainer = (ViewGroup) rootView;
+        Context context = getContext();
+        if (context == null) return;
+
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int cardWidth = (int) (screenWidth * 0.85f); // 85% del ancho de pantalla
+        int cardHeight = (int) (screenWidth * 0.4f); // Altura proporcional
+
+        // Crear vista de preview para el SIGUIENTE registro (derecha)
+        nextPreviewCard = createPreviewCard(context, cardWidth, cardHeight);
+        nextPreviewText = nextPreviewCard.findViewById(android.R.id.text1);
+        nextPreviewCard.setTranslationX(screenWidth); // Posicionar fuera de pantalla (derecha)
+        rootContainer.addView(nextPreviewCard);
+
+        // Crear vista de preview para el registro ANTERIOR (izquierda)
+        prevPreviewCard = createPreviewCard(context, cardWidth, cardHeight);
+        prevPreviewText = prevPreviewCard.findViewById(android.R.id.text1);
+        prevPreviewCard.setTranslationX(-screenWidth); // Posicionar fuera de pantalla (izquierda)
+        rootContainer.addView(prevPreviewCard);
+
+        // Inicialmente ocultas
+        nextPreviewCard.setVisibility(View.GONE);
+        prevPreviewCard.setVisibility(View.GONE);
+    }
+
+    /**
+     * Crea una tarjeta de preview para el carousel
+     */
+    private View createPreviewCard(Context context, int width, int height) {
+        // Crear un CardView programáticamente
+        com.google.android.material.card.MaterialCardView card =
+            new com.google.android.material.card.MaterialCardView(context);
+
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
+        params.gravity = android.view.Gravity.CENTER;
+        card.setLayoutParams(params);
+        card.setCardElevation(12f);
+        card.setRadius(24f);
+        card.setCardBackgroundColor(android.graphics.Color.parseColor("#FFFFFF"));
+
+        // Crear TextView para mostrar información resumida
+        TextView textView = new TextView(context);
+        textView.setId(android.R.id.text1);
+        textView.setTextSize(18);
+        textView.setTextColor(android.graphics.Color.parseColor("#333333"));
+        textView.setGravity(android.view.Gravity.CENTER);
+        textView.setPadding(32, 32, 32, 32);
+
+        card.addView(textView);
+        return card;
+    }
+
+    /**
+     * Actualiza el contenido de las vistas de preview con información del siguiente/anterior registro
+     */
+    private void updatePreviewContent() {
+        if (allRutas == null || allRutas.size() == 0) return;
+
+        // Actualizar preview del SIGUIENTE
+        if (posicion < allRutas.size() - 1 && nextPreviewText != null) {
+            DBOrdenLecturas nextOrden = (DBOrdenLecturas) allRutas.get(posicion + 1);
+            String nextInfo = String.format(
+                "#%s\n%s %s\n📍 %s",
+                nextOrden.getConsecutivoRuta(),
+                nextOrden.getNombre(),
+                nextOrden.getApell(),
+                nextOrden.getDireccion()
+            );
+            nextPreviewText.setText(nextInfo);
+        }
+
+        // Actualizar preview del ANTERIOR
+        if (posicion > 0 && prevPreviewText != null) {
+            DBOrdenLecturas prevOrden = (DBOrdenLecturas) allRutas.get(posicion - 1);
+            String prevInfo = String.format(
+                "#%s\n%s %s\n📍 %s",
+                prevOrden.getConsecutivoRuta(),
+                prevOrden.getNombre(),
+                prevOrden.getApell(),
+                prevOrden.getDireccion()
+            );
+            prevPreviewText.setText(prevInfo);
+        }
     }
 
     /**
@@ -2314,6 +2442,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                             .start();
                     }
 
+                    // Ocultar vistas de preview del carousel
+                    hidePreviewCards();
+
                     currentTranslationX = 0;
                 }
             })
@@ -2326,6 +2457,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 .setDuration(200)
                 .start();
         }
+
+        // Animar vista de preview hacia fuera
+        animatePreviewOut(isRight);
     }
 
     /**
@@ -2356,7 +2490,76 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 .start();
         }
 
+        // Ocultar vistas de preview con animación
+        hidePreviewCards();
+
         currentTranslationX = 0;
+    }
+
+    /**
+     * Oculta las tarjetas de preview con animación de fade out
+     */
+    private void hidePreviewCards() {
+        if (nextPreviewCard != null && nextPreviewCard.getVisibility() == View.VISIBLE) {
+            nextPreviewCard.animate()
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        nextPreviewCard.setVisibility(View.GONE);
+                    }
+                })
+                .start();
+        }
+
+        if (prevPreviewCard != null && prevPreviewCard.getVisibility() == View.VISIBLE) {
+            prevPreviewCard.animate()
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        prevPreviewCard.setVisibility(View.GONE);
+                    }
+                })
+                .start();
+        }
+    }
+
+    /**
+     * Anima la vista de preview hacia fuera de la pantalla
+     */
+    private void animatePreviewOut(boolean isRight) {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+
+        if (isRight && prevPreviewCard != null && prevPreviewCard.getVisibility() == View.VISIBLE) {
+            prevPreviewCard.animate()
+                .translationX(-screenWidth * 1.2f)
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        prevPreviewCard.setVisibility(View.GONE);
+                        prevPreviewCard.setTranslationX(-screenWidth);
+                    }
+                })
+                .start();
+        } else if (!isRight && nextPreviewCard != null && nextPreviewCard.getVisibility() == View.VISIBLE) {
+            nextPreviewCard.animate()
+                .translationX(screenWidth * 1.2f)
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        nextPreviewCard.setVisibility(View.GONE);
+                        nextPreviewCard.setTranslationX(screenWidth);
+                    }
+                })
+                .start();
+        }
     }
 
     /**
