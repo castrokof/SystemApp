@@ -243,11 +243,18 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     InputMethodManager imm;
 
 
-    // ✅ NUEVAS VARIABLES PARA SWIPE (agregar después de tus variables)
+    // ✅ NUEVAS VARIABLES PARA SWIPE MEJORADO
     private GestureDetector gestureDetector;
     private boolean isProcessing = false;
     private static final int SWIPE_THRESHOLD = 100;
     private static final int SWIPE_VELOCITY_THRESHOLD = 100;
+
+    // Variables para tracking en tiempo real del swipe
+    private float initialX = 0f;
+    private float currentTranslationX = 0f;
+    private boolean isSwiping = false;
+    private static final float SWIPE_SENSITIVITY = 0.6f; // 60% del desplazamiento del dedo
+    private static final float SWIPE_SNAP_THRESHOLD = 0.3f; // 30% del ancho de pantalla
 
 
     @Nullable
@@ -2132,155 +2139,255 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     }
 
     private void setupSwipeGesture(View rootView) {
-        gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
+        ScrollView scrollView = rootView.findViewById(R.id.scrollContainer);
+        if (scrollView == null) return;
+
+        final View contentView = binding.getRoot();
+        final View overlay = binding.overlayView;
+
+        scrollView.setOnTouchListener(new View.OnTouchListener() {
+            private float startX, startY;
+            private float lastX;
+            private boolean isHorizontalScroll = false;
+            private int screenWidth;
+
             @Override
-            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-                if (isProcessing) {
-                    Toast.makeText(getContext(), "⏳ Procesando...", Toast.LENGTH_SHORT).show();
-                    return false;
+            public boolean onTouch(View v, MotionEvent event) {
+                if (event == null || isProcessing) return false;
+
+                // Obtener ancho de pantalla
+                if (screenWidth == 0) {
+                    screenWidth = getResources().getDisplayMetrics().widthPixels;
                 }
 
-                // ✅ Evitar NullPointerException
-                if (e1 == null || e2 == null) {
-                    return false;
-                }
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startX = event.getRawX();
+                        startY = event.getRawY();
+                        lastX = startX;
+                        initialX = startX;
+                        isHorizontalScroll = false;
+                        isSwiping = false;
+                        return false; // Permitir que otros eventos se procesen
 
-                try {
-                    float diffX = e2.getX() - e1.getX();
-                    float diffY = e2.getY() - e1.getY();
+                    case MotionEvent.ACTION_MOVE:
+                        float currentX = event.getRawX();
+                        float currentY = event.getRawY();
+                        float diffX = currentX - startX;
+                        float diffY = Math.abs(currentY - startY);
 
-                    // Solo gestos predominantemente horizontales
-                    if (Math.abs(diffX) > Math.abs(diffY)) {
-                        if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                            if (diffX > 0) {
-                                onSwipeRight();
-                            } else {
-                                onSwipeLeft();
+                        // Determinar si es un desplazamiento horizontal
+                        if (!isHorizontalScroll && Math.abs(diffX) > 30 && Math.abs(diffX) > diffY * 1.5f) {
+                            isHorizontalScroll = true;
+                            isSwiping = true;
+                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+
+                        if (isHorizontalScroll && isSwiping) {
+                            // Aplicar límites de desplazamiento
+                            float maxTranslation = screenWidth * 0.4f; // Máximo 40% del ancho
+                            float translation = diffX * SWIPE_SENSITIVITY;
+
+                            // Limitar el desplazamiento
+                            if (translation > maxTranslation) {
+                                translation = maxTranslation;
+                            } else if (translation < -maxTranslation) {
+                                translation = -maxTranslation;
                             }
+
+                            // Aplicar translación al contenido
+                            contentView.setTranslationX(translation);
+                            currentTranslationX = translation;
+
+                            // Actualizar overlay con efecto de oscurecimiento
+                            if (overlay != null) {
+                                float progress = Math.abs(translation) / maxTranslation;
+                                overlay.setAlpha(progress * 0.3f); // Máximo 30% de oscuridad
+                                overlay.setVisibility(View.VISIBLE);
+                            }
+
+                            lastX = currentX;
                             return true;
                         }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
+                        break;
+
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (isHorizontalScroll && isSwiping) {
+                            v.getParent().requestDisallowInterceptTouchEvent(false);
+                            handleSwipeRelease(screenWidth);
+                            isHorizontalScroll = false;
+                            isSwiping = false;
+                            return true;
+                        }
+                        break;
                 }
+
                 return false;
             }
-
-            @Override
-            public boolean onDown(MotionEvent e) {
-                return true; // necesario para que funcione el detector
-            }
         });
+    }
 
-        // ✅ Vincular el gesto al ScrollView
-        ScrollView scrollView = rootView.findViewById(R.id.scrollContainer);
-        if (scrollView != null) {
-            scrollView.setOnTouchListener(new View.OnTouchListener() {
-                private float startX, startY;
+    /**
+     * Maneja el evento cuando el usuario suelta el dedo después de deslizar
+     */
+    private void handleSwipeRelease(int screenWidth) {
+        float threshold = screenWidth * SWIPE_SNAP_THRESHOLD;
+        boolean shouldNavigate = Math.abs(currentTranslationX) > threshold;
 
+        if (shouldNavigate) {
+            // El usuario deslizó lo suficiente, navegar
+            if (currentTranslationX > 0) {
+                // Deslizar a la derecha -> ir a anterior
+                animateSwipeAndNavigate(true);
+            } else {
+                // Deslizar a la izquierda -> ir a siguiente
+                animateSwipeAndNavigate(false);
+            }
+        } else {
+            // No superó el threshold, volver a la posición original
+            animateSwipeCancel();
+        }
+    }
+
+    /**
+     * Anima el swipe completo y navega a la orden anterior/siguiente
+     */
+    private void animateSwipeAndNavigate(boolean isRight) {
+        View contentView = binding.getRoot();
+        View overlay = binding.overlayView;
+
+        // Determinar si puede navegar
+        boolean canNavigate = isRight ?
+            (allRutas.size() > 0 && posicion > 0) :
+            (allRutas.size() > 0 && posicion < (allRutas.size() - 1));
+
+        if (!canNavigate) {
+            // No puede navegar, cancelar animación
+            animateSwipeCancel();
+            Toast.makeText(getContext(),
+                isRight ? "📄 Primer registro" : "📄 Último registro",
+                Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Haptic feedback
+        performHapticFeedback();
+
+        // Animar hacia fuera de la pantalla
+        float targetX = isRight ? getResources().getDisplayMetrics().widthPixels :
+                                  -getResources().getDisplayMetrics().widthPixels;
+
+        contentView.animate()
+            .translationX(targetX)
+            .setDuration(200)
+            .setInterpolator(new android.view.animation.AccelerateInterpolator())
+            .withEndAction(new Runnable() {
                 @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    if (event == null) return false; // 🔒 protección adicional
-
-                    switch (event.getAction()) {
-                        case MotionEvent.ACTION_DOWN:
-                            startX = event.getX();
-                            startY = event.getY();
-                            break;
-
-                        case MotionEvent.ACTION_MOVE:
-                            float diffX = Math.abs(event.getX() - startX);
-                            float diffY = Math.abs(event.getY() - startY);
-
-                            // Si es más horizontal que vertical, interceptar
-                            if (diffX > diffY && diffX > 50) {
-                                gestureDetector.onTouchEvent(event);
-                                return true;
-                            }
-                            break;
+                public void run() {
+                    // Navegar
+                    if (isRight) {
+                        btnBack.performClick();
+                    } else {
+                        btnNext.performClick();
                     }
 
-                    boolean result = gestureDetector.onTouchEvent(event);
-                    return result || v.onTouchEvent(event);
+                    // Restablecer posición desde el lado opuesto con animación
+                    contentView.setTranslationX(-targetX * 0.3f); // Empezar desde el 30% del lado opuesto
+                    contentView.animate()
+                        .translationX(0)
+                        .setDuration(300)
+                        .setInterpolator(new OvershootInterpolator(0.8f))
+                        .start();
+
+                    // Desvanecer overlay
+                    if (overlay != null) {
+                        overlay.animate()
+                            .alpha(0f)
+                            .setDuration(300)
+                            .withEndAction(new Runnable() {
+                                @Override
+                                public void run() {
+                                    overlay.setVisibility(View.GONE);
+                                }
+                            })
+                            .start();
+                    }
+
+                    currentTranslationX = 0;
                 }
-            });
-        }
-    }
+            })
+            .start();
 
-    // ✅ NUEVO MÉTODO: Swipe izquierda (siguiente)
-    private void onSwipeLeft() {
-        if (allRutas.size() > 0 && posicion < (allRutas.size() - 1)) {
-            performHapticFeedback();
-            animateSwipe(binding.getRoot(), -50f, 0f);
-
-            // Llamar al método existente del botón Next
-            btnNext.performClick();
-        } else {
-            Toast.makeText(getContext(), "📄 Último registro", Toast.LENGTH_SHORT).show();
-            shakeView(binding.getRoot());
-        }
-    }
-
-    // ✅ NUEVO MÉTODO: Swipe derecha (anterior)
-    private void onSwipeRight() {
-        if (allRutas.size() > 0 && posicion > 0) {
-            performHapticFeedback();
-            animateSwipe(binding.getRoot(), 50f, 0f);
-
-            // Llamar al método existente del botón Back
-            btnBack.performClick();
-        } else {
-            Toast.makeText(getContext(), "📄 Primer registro", Toast.LENGTH_SHORT).show();
-            shakeView(binding.getRoot());
-        }
-    }
-
-    // ✅ NUEVO MÉTODO: Animación de swipe
-    private void animateSwipe(View view, float startX, float endX) {
-        ObjectAnimator animator = ObjectAnimator.ofFloat(view, "translationX", startX, endX);
-        animator.setDuration(400);
-        animator.setInterpolator(new OvershootInterpolator(1.2f));
-
-        // ✅ CORRECTO: Acceso directo con View Binding
-        View overlay = binding.overlayView; // ← ¡Así de simple!
+        // Animar overlay
         if (overlay != null) {
-            float targetAlpha = (endX != startX) ? 0.4f : 0f; // 0.4 al abrir, 0 al cerrar
-            ObjectAnimator overlayAnim = ObjectAnimator.ofFloat(overlay, "alpha", overlay.getAlpha(), targetAlpha);
-            overlayAnim.setDuration(400);
-            overlayAnim.start();
+            overlay.animate()
+                .alpha(0.5f)
+                .setDuration(200)
+                .start();
         }
-
-        animator.addListener(new AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                fadeInContent();
-            }
-        });
-
-        animator.start();
     }
 
-    // ✅ NUEVO MÉTODO: Fade in del contenido
+    /**
+     * Cancela el swipe y vuelve a la posición original con animación de rebote
+     */
+    private void animateSwipeCancel() {
+        View contentView = binding.getRoot();
+        View overlay = binding.overlayView;
+
+        // Animar de vuelta a posición original con overshoot
+        contentView.animate()
+            .translationX(0)
+            .setDuration(300)
+            .setInterpolator(new OvershootInterpolator(1.2f))
+            .start();
+
+        // Desvanecer overlay
+        if (overlay != null) {
+            overlay.animate()
+                .alpha(0f)
+                .setDuration(300)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        overlay.setVisibility(View.GONE);
+                    }
+                })
+                .start();
+        }
+
+        currentTranslationX = 0;
+    }
+
+    /**
+     * Aplica fade in al contenido después de una animación
+     */
     private void fadeInContent() {
         View root = binding.getRoot();
         root.setAlpha(0.7f);
         root.animate().alpha(1f).setDuration(200).start();
     }
 
-    // ✅ NUEVO MÉTODO: Shake cuando no puede avanzar
+    /**
+     * Anima una sacudida de la vista (cuando no puede avanzar/retroceder)
+     */
     private void shakeView(View view) {
-        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(view, "translationX", 0f, 25f, -25f, 15f, -15f, 0f);
+        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
+            view, "translationX", 0f, 25f, -25f, 15f, -15f, 0f
+        );
         animator.setDuration(400);
         animator.start();
     }
 
-    // ✅ NUEVO MÉTODO: Feedback háptico
+    /**
+     * Proporciona feedback háptico al usuario
+     */
     private void performHapticFeedback() {
         View root = binding.getRoot();
         if (root != null) {
             root.performHapticFeedback(
-                    android.view.HapticFeedbackConstants.VIRTUAL_KEY,
-                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+                android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
             );
         }
     }
