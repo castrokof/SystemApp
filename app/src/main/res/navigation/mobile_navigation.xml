@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@+id/nav_ordenes">
+
+    <fragment
+        android:id="@+id/nav_ejecutadas"
+        android:name="com.example.systemapp.ui.fragment_ejecutadas"
+        android:label="@string/menu_ejecutadas"
+        tools:layout="@layout/fragment_ejecutadas" />
+
+    <fragment
+        android:id="@+id/nav_sync"
+        android:name="com.example.systemapp.ui.sync.sync.fragment_sync"
+        android:label="@string/menu_sync"
+        tools:layout="@layout/fragment_sync" />
+
+    <fragment
+        android:id="@+id/nav_borrarruta"
+        android:name="com.example.systemapp.ui.borrardatos.fragment_borrar_datos"
+        android:label="@string/borrar_datos_f"
+        tools:layout="@layout/fragment_borrar_datos" />
+
+    <fragment
+        android:id="@+id/nav_ordenes"
+        android:name="com.example.systemapp.ui.fragment_ordenes"
+        android:label="@string/menu_ordenes"
+        tools:layout="@layout/fragment_ordenes" />
+
+    <fragment
+        android:id="@+id/nav_config"
+        android:name="com.example.systemapp.ui.config.ConfigFragment"
+        android:label="@string/configurar_impresora"
+        tools:layout="@layout/fragment_config" />
+
+
+</navigation>

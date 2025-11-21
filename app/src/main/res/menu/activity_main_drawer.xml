@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:showIn="navigation_view">
+
+    <group android:checkableBehavior="single">
+
+        <item
+            android:id="@+id/nav_ordenes"
+            android:icon="@drawable/ic_pendientes_tab"
+            android:title="Lecturas" />
+       <item
+            android:id="@+id/nav_ejecutadas"
+            android:icon="@drawable/ic_reasignadas_tab"
+            android:title="@string/menu_ejecutadas" />-->
+        <item
+            android:id="@+id/nav_sync"
+            android:icon="@drawable/ic_sincronizar"
+            android:title="@string/menu_sync" />
+        <item
+            android:id="@+id/nav_borrarruta"
+            android:icon="@drawable/ic_baseline_phonelink_erase_24"
+            android:title="@string/borrar_datos_f" />
+        <item
+            android:id="@+id/nav_config"
+            android:icon="@drawable/ic_baseline_print_24"
+            android:title="@string/configurar_impresora" />
+
+
+    </group>
+</menu>

@@ -1,0 +1,75 @@
+<resources>
+    <string name="app_name">SystemApp</string>
+    <string name="lectura_input_req">El campo lectura es obligatorio</string>
+    <string name="nav_header_title">Android Studio</string>
+    <string name="usuario">usuario</string>
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="action_settings">Settings</string>
+    <string name="error_network">Conexión de red no disponible</string>
+    <string name="menu_ejecutadas">Ejecutadas</string>
+    <string name="menu_sync">Sincronizar</string>
+    <string name="bottom_nav_pendientes">Listar Pendientes %1$d</string>
+    <string name="bottom_nav_reasignadas">Reasignadas %1$d</string>
+    <string name="bottom_nav_procesadas">Procesadas %1$d</string>
+    <string name="menu_slideshow">Slideshow</string>
+    <string name="borrar_datos_f">DB-Resumen y Eliminar</string>
+    <string name="menu_ordenes">Ordenes</string>
+    <string name="menu_s">Sesion</string>
+    <string name="menu_logout">Salir</string>
+    <string name="comfirm_logout">¿Está seguro que desea cerrar su sesión?</string>
+    <string name="title_activity_login">LoginActivity</string>
+    <string name="prompt_email">Usuario</string>
+    <string name="prompt_password">Contraseña</string>
+    <string name="action_sign_in">Inicie Sesion</string>
+    <string name="action_sign_in_short">Ingrese</string>
+    <string name="invalid_username">EL usuario no es valido</string>
+    <string name="invalid_password">LA contraseña debe ser >5 caracteres</string>
+    <string name="login_failed">"El usuario o contraseña son incorrectos"</string>
+    <string name="error_field_required">El campo usuario es obligatorio</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="no_hay_rutas_disponibles">No hay rutas disponibles</string>
+    <string name="sincronizando_rutas">Sincronizando rutas...</string>
+    <string name="buscar_medidor">Buscar medidor</string>
+    <string name="sync_cronizar">En el siguiente menú puedes descargar las ordenes y listas</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="req_gps_on">
+        Habilite el servicio de GPS del dispositivo, para obtener su localización actual.
+        Click en OK para ir a la configuración de los servicios de ubicación.
+    </string>
+    <!-- Nombres de los textv de formulario de lectura-->
+    <string name="textV_direccion"></string>
+    <string name="textV_nombre"></string>
+    <string name="textV_ruta"></string>
+    <string name="textV_suscriptor"></string>
+    <string name="textV_tipoconsumo"></string>
+    <string name="textV_consecutivo"></string>
+    <string name="textV_motivonolectura">Motivo No lectura</string>
+    <string name="textV_observacion">Observación</string>
+    <string name="textV_obs_general">Obs General</string>
+    <string name="textV_resumen">resumen</string>
+    <string name="textV_medidor"></string>
+    <string name="mensaje_critica">"Revise serie y lectura "</string>
+    <string name="foto_req">Es obligatorio la foto</string>
+    <string name="txt_cierre_asignadas">Lecturas asignadas: %1$d</string>
+    <string name="txt_cierre_realizadas">Lecturas realizadas: %1$d</string>
+    <string name="txt_cierre_pendientes">Lecturas pendientes: %1$d</string>
+    <string name="txt_cierre_pend_envio">Lecturas pendientes de envío: %1$d</string>
+    <string name="btn_cerrar_ruta">Borrar ruta</string>
+    <string name="req_comfirm_cierre_ruta">
+        ¿Está seguro que desea borrar los datos? Los datos no enviados
+        serán borrados de la base de datos sin posibilidad de recuperarlos.
+        Recuerde que hay %1$d registros  pendientes por hacer lectura.
+    </string>.
+
+    <string name="req_motivo">Debes seleccionar un motivo</string>
+    <string name="causa_title">Registre un motivo</string>
+    <string name="req_campo">Es obligatorio el campo</string>
+    <string name="req_opcion">Selecciona una opción</string>
+    <string name="textVmotivon">Motivo:</string>
+    <string name="digits">"aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ1234567890., "</string>
+    <string name="observacion_title">Seleccione observación</string>
+    <string name="req_coment">Escriba el número del nuevo medidor</string>
+    <string name="configurar_impresora">Impresora</string>
+
+</resources>

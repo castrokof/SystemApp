@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+    android:id="@+id/nav_pend"
+    android:title="@string/bottom_nav_pendientes" />
+    <!--  android:icon="@drawable/ic_pendientes_tab"
+     android:iconTint="#6200ED"-->
+
+
+
+
+
+</menu>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/listLayout"
+    android:clickable="true"
+    >
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <TextView
+            android:id="@+id/tipo_serv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Montreal,Canada"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="5dp"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/lect_actu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:layout_marginStart="15dp"
+        android:text="Lectura actual:"
+        android:textSize="14sp"/>
+
+    <TextView
+        android:id="@+id/lect_medidor"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="50dp"
+        android:layout_marginStart="15dp"
+        android:text="Medidor:"
+        android:textSize="14sp"/>
+
+    <TextView
+        android:id="@+id/lect_causa"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="80dp"
+        android:layout_marginStart="15dp"
+        android:text="Causa:"
+        android:textSize="14sp"/>
+
+    <TextView
+        android:id="@+id/lect_obsv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="110dp"
+        android:layout_marginStart="15dp"
+        android:text="Observación:"
+        android:textSize="14sp"/>
+
+
+
+</RelativeLayout>

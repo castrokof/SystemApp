@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/activatedBackgroundIndicator">
+
+    <LinearLayout
+        android:id="@+id/thumbnail"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_alignParentLeft="true"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:orientation="horizontal"
+        android:padding="3dp">
+
+    </LinearLayout>
+
+
+
+    <TextView
+        android:id="@+id/txtMedidor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/thumbnail"
+        android:layout_toRightOf="@id/thumbnail"
+        android:textColor="#0422E3"
+        android:text=""
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="5dp"
+        android:textSize="20dp"
+        android:fontFamily="sans-serif-black"
+        android:textStyle="italic"/>
+
+
+
+    <TextView
+        android:id="@+id/txtDireccion"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/txtMedidor"
+        android:textColor="#546e7a"
+        android:text=""
+        android:textSize="16dp"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:fontFamily="sans-serif-black"
+        android:textStyle="italic"
+        android:layout_marginTop="1dp"
+        android:layout_toRightOf="@id/thumbnail"
+        android:drawableLeft="@drawable/ic_dir"/>
+
+
+    <TextView
+        android:id="@+id/txtRuta"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/txtDireccion"
+        android:textColor="#3B4D55"
+        android:text=""
+        android:textSize="16dp"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:fontFamily="sans-serif-thin"
+        android:textStyle="bold"
+        android:layout_marginTop="1dp"
+        android:layout_toRightOf="@id/thumbnail"
+        android:drawableLeft="@drawable/ic_ruta"/>
+
+    <TextView
+        android:id="@+id/txtNombre"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/txtRuta"
+        android:layout_marginTop="5dp"
+        android:layout_toRightOf="@id/thumbnail"
+        android:fontFamily="sans-serif-thin"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:textColor="@color/black"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:drawableLeft="@drawable/ic_user"/>
+
+    <ImageView
+        android:id="@+id/imgItem"
+        android:layout_width="100dp"
+        android:layout_height="70dp"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="19dp"
+        android:elevation="10dp"
+        android:paddingLeft="16dp"
+        tools:visibility="gone" />
+
+</RelativeLayout>
