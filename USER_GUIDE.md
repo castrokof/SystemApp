@@ -166,23 +166,17 @@ Se recomienda sincronizar:
 
 ### Ver Órdenes de Lectura
 
-**Paso 1: Acceder a Órdenes**
+El menú lateral le permite acceder a dos vistas diferentes:
+
+**Órdenes Pendientes**
 1. Abra el menú lateral
 2. Toque "Órdenes"
+3. Verá el listado de órdenes pendientes de lectura
 
-**Paso 2: Navegar entre Categorías**
-
-En la parte inferior verá tres pestañas:
-
-```
-┌──────────────────────────────────────┐
-│ Pendientes │ Reasignadas │Procesadas │
-└──────────────────────────────────────┘
-```
-
-- **Pendientes**: Órdenes sin lectura
-- **Reasignadas**: Órdenes reasignadas a usted
-- **Procesadas**: Lecturas ya capturadas (pendientes de envío)
+**Órdenes Ejecutadas**
+1. Abra el menú lateral
+2. Toque "Ejecutadas"
+3. Verá el listado de lecturas ya capturadas (pendientes de envío)
 
 ### Información de Cada Orden
 
@@ -354,7 +348,7 @@ Para comentarios adicionales:
 **Paso 2: Guardar**
 1. Toque el botón "GUARDAR" o ícono de disco (💾)
 2. Espere el mensaje de confirmación
-3. La orden se moverá a "Procesadas"
+3. La orden se moverá a "Ejecutadas"
 
 **Mensajes**:
 ```
@@ -380,7 +374,7 @@ Para comentarios adicionales:
 
 Si necesita corregir una lectura ya guardada:
 
-1. Vaya a "Procesadas"
+1. Vaya al menú lateral y toque "Ejecutadas"
 2. Busque la orden
 3. Toque sobre ella
 4. Realice los cambios necesarios
@@ -405,7 +399,7 @@ Se recomienda enviar:
 ### Proceso de Envío
 
 **Paso 1: Verificar Lecturas Pendientes**
-1. Vaya a "Órdenes" → "Procesadas"
+1. Abra el menú lateral y toque "Ejecutadas"
 2. Revise la cantidad de lecturas pendientes de envío
 
 **Paso 2: Acceder a Sincronización**
@@ -480,9 +474,9 @@ Después de guardar una lectura:
 2. Espere mientras se conecta a la impresora
 3. El recibo se imprimirá automáticamente
 
-**Opción 2: Desde Lista de Órdenes**
+**Opción 2: Desde Lista de Ejecutadas**
 
-1. Vaya a "Procesadas"
+1. Abra el menú lateral y toque "Ejecutadas"
 2. Toque y mantenga presionada una orden
 3. Seleccione "Imprimir" del menú contextual
 
