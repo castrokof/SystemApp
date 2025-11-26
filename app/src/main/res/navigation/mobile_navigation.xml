@@ -35,5 +35,18 @@
         android:label="@string/configurar_impresora"
         tools:layout="@layout/fragment_config" />
 
+    <!-- MÓDULO DE REVISIONES -->
+    <fragment
+        android:id="@+id/nav_revisiones"
+        android:name="com.example.systemapp.ui.revisiones.Fragment_ordenes_revision"
+        android:label="Revisiones"
+        tools:layout="@layout/fragment_ordenes_revision" />
+
+    <fragment
+        android:id="@+id/nav_ejecutadas_revisiones"
+        android:name="com.example.systemapp.ui.revisiones.Fragment_ejecutadas_revision"
+        android:label="Ejecutadas"
+        tools:layout="@layout/fragment_ejecutadas_revision" />
+
 
 </navigation>

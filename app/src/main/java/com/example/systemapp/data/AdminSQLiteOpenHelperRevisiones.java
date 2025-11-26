@@ -181,6 +181,14 @@ public class AdminSQLiteOpenHelperRevisiones extends SQLiteOpenHelper {
     }
 
     /**
+     * Obtener revisiones por estado
+     */
+    public List<DBOrdenRevision> getRevisionesByEstado(String estado) {
+        String condition = DBdefinicionRevisiones.REVISIONES.Estado + " = '" + estado + "'";
+        return getRevisiones(condition);
+    }
+
+    /**
      * Contar revisiones con condición
      */
     public int getCountRevisiones(String condition) {
