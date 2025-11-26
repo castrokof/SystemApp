@@ -273,12 +273,42 @@ public class REjecutadasFragment extends Fragment {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                allRutas = adminSQLiteOpenHelper.getData("lecturas",
-                        "tipo_orden = 'RUTAS' AND categoria_orden = 'RELECTURA' AND medidor like " +
-                                "'%"+s.toString().trim().toUpperCase()+"%'");
-                //adaptador.getFilter().filter(s);
-                adaptador = new Adaptador(getActivity(), (ArrayList) allRutas);
-                listaItems.setAdapter(adaptador);
+                String searchText = s.toString().trim().toUpperCase();
+
+                // Si el campo de búsqueda está vacío, mostrar todos los registros según el filtro
+                if (searchText.isEmpty()) {
+                    switch (VariablesSesion.filtro) {
+                        case "ACUEDUCTO":
+                            allRutas = adminSQLiteOpenHelper.getData(DBdefinicionOrdenes.LECTURAS.TABLE_NAME,
+                                    "tipo_orden = 'RUTAS' AND categoria_orden = 'RELECTURA' AND nservic='ACUEDUCTO'");
+                            break;
+                        case "ENERGIA":
+                            allRutas = adminSQLiteOpenHelper.getData(DBdefinicionOrdenes.LECTURAS.TABLE_NAME,
+                                    "tipo_orden = 'RUTAS' AND categoria_orden = 'RELECTURA' AND nservic='ENERGIA'");
+                            break;
+                        case "TODO":
+                            allRutas = adminSQLiteOpenHelper.getData("lecturas",
+                                    "tipo_orden = 'RUTAS' AND categoria_orden = 'RELECTURA'");
+                            break;
+                    }
+                } else {
+                    // Buscar por Ref_Medidor (nombre correcto del campo en BD)
+                    allRutas = adminSQLiteOpenHelper.getData("lecturas",
+                            "tipo_orden = 'RUTAS' AND categoria_orden = 'RELECTURA' AND Ref_Medidor like " +
+                                    "'%"+searchText+"%'");
+                }
+
+                // Actualizar UI
+                if (allRutas.size() == 0) {
+                    txt_nodata.setVisibility(View.VISIBLE);
+                    listaItems.setVisibility(View.GONE);
+                } else {
+                    txt_nodata.setVisibility(View.GONE);
+                    listaItems.setVisibility(View.VISIBLE);
+                    adaptador = new Adaptador(getActivity(), (ArrayList) allRutas);
+                    listaItems.setAdapter(adaptador);
+                }
+
                 SessionPrefs.get(getActivity()).setPrefRutasProcesadas(allRutas.size());
                 if (parentFragment != null) {
                     parentFragment.setCantidades(mPrefs.getInt("PREF_RUTAS_PENDIENTES", 0) + "",
