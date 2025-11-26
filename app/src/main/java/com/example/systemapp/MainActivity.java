@@ -95,21 +95,36 @@ public class MainActivity extends AppCompatActivity {
         });*/
         DrawerLayout drawer = binding.drawerLayout;
         NavigationView navigationView = binding.navView;
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
 
+        // ⭐ MENÚ DINÁMICO SEGÚN TIPO DE USUARIO
+        String tipoUsuario = SessionPrefs.get(this).getTipodeUsuario();
 
-        mAppBarConfiguration = new AppBarConfiguration.Builder(
+        if ("REVISOR".equals(tipoUsuario)) {
+            // Inflar menú de revisiones
+            navigationView.getMenu().clear();
+            navigationView.inflateMenu(R.menu.activity_main_drawer_revisor);
 
-                R.id.nav_ordenes,
-                R.id.nav_ejecutadas,
-                R.id.nav_borrarruta,
-                R.id.nav_sync,
-                R.id.nav_config
-
-        )
-                .setOpenableLayout(drawer)
-                .build();
+            mAppBarConfiguration = new AppBarConfiguration.Builder(
+                    R.id.nav_revisiones,
+                    R.id.nav_ejecutadas_revisiones,
+                    R.id.nav_borrarruta,
+                    R.id.nav_sync,
+                    R.id.nav_config
+            )
+                    .setOpenableLayout(drawer)
+                    .build();
+        } else {
+            // Menú por defecto (TECNICO) - módulo de lecturas
+            mAppBarConfiguration = new AppBarConfiguration.Builder(
+                    R.id.nav_ordenes,
+                    R.id.nav_ejecutadas,
+                    R.id.nav_borrarruta,
+                    R.id.nav_sync,
+                    R.id.nav_config
+            )
+                    .setOpenableLayout(drawer)
+                    .build();
+        }
 
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
         NavigationUI.setupActionBarWithNavController(this, navController, mAppBarConfiguration);
