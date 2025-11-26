@@ -17,8 +17,9 @@ public class SessionPrefs {
     public static final String PREF_USER_EMAIL = "PREF_USER_EMAIL";
     public static final String PREF_USER_ESTADO = "PREF_USER_ESTADO";
     public static final String PREF_USER_CLAVE = "PREF_USER_CLAVE";
+    public static final String PREF_USER_TIPO = "PREF_USER_TIPO"; // ⭐ NUEVO: TECNICO, REVISOR, ADMIN
 
-    public static final String PREF_API_TOKEN = "PREF_API_TOKEN"; // ⭐ NUEVO
+    public static final String PREF_API_TOKEN = "PREF_API_TOKEN";
 
     public static final Boolean PREF_RUTAS_SYNC = false;//indica si ya fueron sincronizadas las rutas
     public static final int PREF_RUTAS_PENDIENTES = 0;
@@ -58,7 +59,8 @@ public class SessionPrefs {
             editor.putString(PREF_USER_EMAIL, loginResp.getEmail());
             editor.putString(PREF_USER_ESTADO, loginResp.getEstado());
             editor.putString(PREF_USER_CLAVE, loginResp.getEstado());
-            editor.putString(PREF_API_TOKEN, loginResp.getApiToken()); // ⭐ GUARDAR TOKEN
+            editor.putString(PREF_USER_TIPO, loginResp.getTipodeusuario()); // ⭐ GUARDAR TIPO
+            editor.putString(PREF_API_TOKEN, loginResp.getApiToken());
             editor.apply();
 
             mIsLoggedIn = true;
@@ -73,7 +75,8 @@ public class SessionPrefs {
         editor.putString(PREF_USER_FULLNAME, null);
         editor.putString(PREF_USER_EMAIL, null);
         editor.putString(PREF_USER_ESTADO, null);
-        editor.putString(PREF_API_TOKEN, null); // ⭐ LIMPIAR TOKEN
+        editor.putString(PREF_USER_TIPO, null); // ⭐ LIMPIAR TIPO
+        editor.putString(PREF_API_TOKEN, null);
         editor.putBoolean("PREF_RUTAS_SYNC", false);
         editor.putString("PREF_RUTAS_PENDIENTES", null);
         editor.putString("PREF_RUTAS_REASIGNADAS", null);
@@ -87,6 +90,30 @@ public class SessionPrefs {
     public String getApiToken(){
         return mPrefs.getString(PREF_API_TOKEN, null);
     }
+
+    // ⭐ NUEVO: Método para obtener el tipo de usuario
+    public String getTipodeUsuario(){
+        return mPrefs.getString(PREF_USER_TIPO, null);
+    }
+
+    // ⭐ NUEVO: Verificar si es técnico de lecturas
+    public boolean isTecnico(){
+        String tipo = getTipodeUsuario();
+        return "TECNICO".equals(tipo);
+    }
+
+    // ⭐ NUEVO: Verificar si es técnico de revisiones
+    public boolean isRevisor(){
+        String tipo = getTipodeUsuario();
+        return "REVISOR".equals(tipo);
+    }
+
+    // ⭐ NUEVO: Verificar si es administrador
+    public boolean isAdmin(){
+        String tipo = getTipodeUsuario();
+        return "ADMIN".equals(tipo);
+    }
+
     public void setPrefRutasPendientes(int cantrutaspend) {
 
         SharedPreferences.Editor editor = mPrefs.edit();
