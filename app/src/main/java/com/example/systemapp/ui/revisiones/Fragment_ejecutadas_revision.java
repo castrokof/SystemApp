@@ -202,13 +202,16 @@ public class Fragment_ejecutadas_revision extends Fragment {
             // Guardar en BD
             dbHelper.insertOrUpdateRevision(orden, true);
 
-            // TODO: Navegar a Fragment_form_revision con los 6 tabs (modo edición)
-            Toast.makeText(getContext(),
-                "Revisión reabierta. Modificación " + (modificaciones + 1) + "/3",
-                Toast.LENGTH_SHORT).show();
+            // Navegar a Fragment_form_revision con los 6 tabs (modo edición)
+            Fragment_form_revision formFragment = Fragment_form_revision.newInstance(orden.getId());
 
-            // Recargar lista
-            cargarEjecutadas();
+            if (getActivity() != null) {
+                getActivity().getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.nav_host_fragment_content_main, formFragment)
+                    .addToBackStack(null)
+                    .commit();
+            }
         });
 
         builder.setNegativeButton("Cancelar", null);

@@ -313,4 +313,27 @@ public class AdminSQLiteOpenHelperRevisiones extends SQLiteOpenHelper {
 
         return causas;
     }
+
+    /**
+     * Obtener todas las causas de desviación
+     */
+    public List<DBCausaDesviacion> getAllCausas() {
+        return getCausas(null);
+    }
+
+    /**
+     * Obtener revisión por ID
+     */
+    public DBOrdenRevision getRevisionById(String id) {
+        if (id == null) return null;
+
+        String condition = DBdefinicionRevisiones.REVISIONES.id + " = '" + id + "'";
+        List<DBOrdenRevision> revisiones = getRevisiones(condition);
+
+        if (revisiones != null && !revisiones.isEmpty()) {
+            return revisiones.get(0);
+        }
+
+        return null;
+    }
 }

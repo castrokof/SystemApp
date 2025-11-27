@@ -256,11 +256,18 @@ public class Fragment_ordenes_revision extends Fragment {
             orden.setEstado("EN_EJECUCION");
             dbHelper.insertOrUpdateRevision(orden, true);
 
-            // TODO: Navegar a Fragment_form_revision con los 6 tabs
-            Toast.makeText(getContext(), "Orden abierta. Navegando al formulario...", Toast.LENGTH_SHORT).show();
+            // Navegar a Fragment_form_revision con los 6 tabs
+            Fragment_form_revision formFragment = Fragment_form_revision.newInstance(orden.getId());
+
+            if (getActivity() != null) {
+                getActivity().getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.nav_host_fragment_content_main, formFragment)
+                    .addToBackStack(null)
+                    .commit();
+            }
 
             dialog.dismiss();
-            cargarOrdenes(); // Recargar lista
         });
 
         dialog.show();
