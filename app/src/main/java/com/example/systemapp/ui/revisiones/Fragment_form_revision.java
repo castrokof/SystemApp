@@ -20,6 +20,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -254,18 +255,75 @@ public class Fragment_form_revision extends Fragment {
     }
 
     private void generarPDF() {
-        // TODO: Implementar generación de PDF
-        Toast.makeText(getContext(), "Generación de PDF en desarrollo", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), "Generando PDF...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            try {
+                PDFGenerator pdfGenerator = new PDFGenerator(getContext());
+                File pdfFile = pdfGenerator.generarPDF(orden);
+
+                // Guardar ruta en BD
+                dbHelper.insertOrUpdateRevision(orden, true);
+
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(),
+                            "✓ PDF generado: " + pdfFile.getName(),
+                            Toast.LENGTH_LONG).show();
+                    });
+                }
+            } catch (Exception e) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(),
+                            "Error al generar PDF: " + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                    });
+                }
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     private void imprimir() {
-        // TODO: Implementar impresión Bluetooth
-        Toast.makeText(getContext(), "Impresión en desarrollo", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), "Impresión Bluetooth disponible cuando se conecte impresora", Toast.LENGTH_SHORT).show();
+        // TODO: Implementar selección de impresora Bluetooth y envío
+        // BluetoothPrinter printer = new BluetoothPrinter(getContext(), outputStream);
+        // printer.imprimirRevision(orden);
     }
 
     private void enviarAPI() {
-        // TODO: Implementar envío a API
-        Toast.makeText(getContext(), "Envío a API en desarrollo", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), "Enviando a API...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            try {
+                APISync apiSync = new APISync(getContext());
+                boolean success = apiSync.enviarRevision(orden);
+
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (success) {
+                            Toast.makeText(getContext(),
+                                "✓ Revisión enviada exitosamente a la API",
+                                Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(getContext(),
+                                "Error al enviar a la API",
+                                Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(),
+                            "Error: " + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                    });
+                }
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     @Override
