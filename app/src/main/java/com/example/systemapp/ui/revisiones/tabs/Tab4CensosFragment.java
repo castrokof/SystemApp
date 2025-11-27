@@ -1,7 +1,12 @@
 package com.example.systemapp.ui.revisiones.tabs;
 
+import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,6 +18,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -20,8 +26,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.systemapp.R;
 import com.example.systemapp.data.model.DBCensoHidraulico;
 import com.example.systemapp.data.model.DBOrdenRevision;
+import com.example.systemapp.ui.revisiones.CameraHelper;
 import com.google.android.material.textfield.TextInputEditText;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +49,8 @@ public class Tab4CensosFragment extends Fragment {
 
     private List<DBCensoHidraulico> elementosHidraulicos;
     private CensoHidraulicoAdapter adapter;
+    private CameraHelper cameraHelper;
+    private int currentPhotoElementPosition = -1;
 
     public static Tab4CensosFragment newInstance(DBOrdenRevision orden) {
         Tab4CensosFragment fragment = new Tab4CensosFragment();
@@ -69,6 +79,9 @@ public class Tab4CensosFragment extends Fragment {
         rvCensoHidraulico.setLayoutManager(new LinearLayoutManager(getContext()));
         rvCensoHidraulico.setAdapter(adapter);
 
+        // Inicializar camera helper
+        cameraHelper = new CameraHelper(getContext());
+
         cargarDatos();
         setupListeners();
         actualizarVistaLista();
@@ -94,8 +107,8 @@ public class Tab4CensosFragment extends Fragment {
         adapter.setOnItemActionListener(new CensoHidraulicoAdapter.OnItemActionListener() {
             @Override
             public void onTomarFoto(DBCensoHidraulico elemento, int position) {
-                // TODO: Implementar captura de foto
-                Toast.makeText(getContext(), "Función de foto en desarrollo", Toast.LENGTH_SHORT).show();
+                currentPhotoElementPosition = position;
+                abrirCamara(elemento);
             }
 
             @Override
@@ -185,5 +198,76 @@ public class Tab4CensosFragment extends Fragment {
 
     public List<DBCensoHidraulico> getElementosHidraulicos() {
         return elementosHidraulicos;
+    }
+
+    /**
+     * Abrir cámara para foto de elemento
+     */
+    private void abrirCamara(DBCensoHidraulico elemento) {
+        // Verificar permiso
+        if (!cameraHelper.hasPermission()) {
+            cameraHelper.requestPermission(getActivity());
+            return;
+        }
+
+        try {
+            File photoFile = cameraHelper.createCensoPhotoFile(
+                orden != null ? orden.getId() : "temp",
+                elemento.getElemento()
+            );
+
+            if (photoFile != null) {
+                Uri photoURI = FileProvider.getUriForFile(
+                    getContext(),
+                    getContext().getPackageName() + ".fileprovider",
+                    photoFile
+                );
+
+                Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+
+                if (takePictureIntent.resolveActivity(getActivity().getPackageManager()) != null) {
+                    startActivityForResult(takePictureIntent, CameraHelper.REQUEST_IMAGE_CAPTURE);
+                } else {
+                    Toast.makeText(getContext(), "No hay aplicación de cámara disponible", Toast.LENGTH_SHORT).show();
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(getContext(), "Error al abrir cámara: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == CameraHelper.REQUEST_IMAGE_CAPTURE && resultCode == Activity.RESULT_OK) {
+            // Foto capturada exitosamente
+            String photoPath = cameraHelper.getCurrentPhotoPath();
+
+            if (currentPhotoElementPosition >= 0 && currentPhotoElementPosition < elementosHidraulicos.size()) {
+                DBCensoHidraulico elemento = elementosHidraulicos.get(currentPhotoElementPosition);
+                elemento.setFoto_path(photoPath);
+                adapter.notifyItemChanged(currentPhotoElementPosition);
+
+                Toast.makeText(getContext(), "Foto guardada", Toast.LENGTH_SHORT).show();
+            }
+
+            currentPhotoElementPosition = -1;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == CameraHelper.REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(getContext(), "Permiso concedido. Intente nuevamente.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(getContext(), "Permiso de cámara denegado", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 }

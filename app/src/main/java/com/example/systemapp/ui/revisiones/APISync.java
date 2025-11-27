@@ -101,6 +101,20 @@ public class APISync {
                     contador++;
                 }
 
+                // Descargar firma del técnico si no está en caché
+                String usuarioTecnico = SessionPrefs.get(context).getUsuario();
+                File firmaTecnicoLocal = getFirmaTecnicoLocal(usuarioTecnico);
+
+                if (firmaTecnicoLocal == null) {
+                    // Intentar descargar firma del técnico
+                    try {
+                        descargarFirmaTecnico(usuarioTecnico);
+                    } catch (Exception e) {
+                        // Si falla, continuar (la firma no es crítica)
+                        e.printStackTrace();
+                    }
+                }
+
                 return contador;
             } else {
                 throw new Exception(jsonResponse.optString("message", "Error desconocido"));
@@ -260,9 +274,69 @@ public class APISync {
     /**
      * Descargar firma del técnico desde la API
      */
-    public File descargarFirmaTecnico(String firmaUrl) throws Exception {
-        // TODO: Implementar descarga de imagen desde URL
-        // Por ahora retornar null
+    public File descargarFirmaTecnico(String usuarioTecnico) throws Exception {
+        String endpoint = ApiConfig.buildUrl(context, "/usuarios/" + usuarioTecnico + "/firma");
+
+        URL url = new URL(endpoint);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("Authorization", "Bearer " + apiToken);
+        conn.setConnectTimeout(30000);
+        conn.setReadTimeout(30000);
+
+        int responseCode = conn.getResponseCode();
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            reader.close();
+
+            // Parsear respuesta JSON
+            JSONObject jsonResponse = new JSONObject(response.toString());
+            boolean success = jsonResponse.getBoolean("success");
+
+            if (success) {
+                String firmaBase64 = jsonResponse.getString("firma_base64");
+
+                // Decodificar Base64 y guardar como archivo
+                byte[] firmaBytes = Base64.decode(firmaBase64, Base64.DEFAULT);
+
+                // Crear directorio de firmas si no existe
+                File firmasDir = new File(context.getFilesDir(), "firmas");
+                if (!firmasDir.exists()) {
+                    firmasDir.mkdirs();
+                }
+
+                // Guardar firma del técnico
+                File firmaFile = new File(firmasDir, "firma_tecnico_" + usuarioTecnico + ".png");
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(firmaFile);
+                fos.write(firmaBytes);
+                fos.close();
+
+                return firmaFile;
+            } else {
+                throw new Exception(jsonResponse.optString("message", "Firma no encontrada"));
+            }
+        } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+            // No tiene firma registrada
+            return null;
+        } else {
+            throw new Exception("Error HTTP: " + responseCode);
+        }
+    }
+
+    /**
+     * Verificar si existe firma del técnico en caché
+     */
+    public File getFirmaTecnicoLocal(String usuarioTecnico) {
+        File firmaFile = new File(context.getFilesDir(), "firmas/firma_tecnico_" + usuarioTecnico + ".png");
+        if (firmaFile.exists()) {
+            return firmaFile;
+        }
         return null;
     }
 }

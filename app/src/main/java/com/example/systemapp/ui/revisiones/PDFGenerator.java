@@ -208,11 +208,27 @@ public class PDFGenerator {
         canvas.drawText("Firma del Técnico:", MARGIN + 20, yPosition, paint);
         yPosition += 10;
 
-        // Obtener firma del técnico desde SessionPrefs
-        String firmaTecnicoUrl = SessionPrefs.get(context).getFirmaURL();
-        if (firmaTecnicoUrl != null && !firmaTecnicoUrl.isEmpty()) {
-            // TODO: Descargar firma del técnico de la URL y agregarla al PDF
-            canvas.drawText("(Firma del técnico desde servidor)", MARGIN + 20, yPosition, paint);
+        // Obtener firma del técnico desde caché local
+        String usuarioTecnico = SessionPrefs.get(context).getUsuario();
+        APISync apiSync = new APISync(context);
+        File firmaTecnicoFile = apiSync.getFirmaTecnicoLocal(usuarioTecnico);
+
+        if (firmaTecnicoFile != null && firmaTecnicoFile.exists()) {
+            try {
+                Bitmap firmaTecnico = BitmapFactory.decodeFile(firmaTecnicoFile.getAbsolutePath());
+                if (firmaTecnico != null) {
+                    Bitmap scaledFirma = Bitmap.createScaledBitmap(firmaTecnico, 200, 80, true);
+                    canvas.drawBitmap(scaledFirma, MARGIN + 20, yPosition, paint);
+                    firmaTecnico.recycle();
+                    scaledFirma.recycle();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                canvas.drawText("(Error al cargar firma)", MARGIN + 20, yPosition, paint);
+            }
+            yPosition += 90;
+        } else {
+            canvas.drawText("(Sin firma registrada)", MARGIN + 20, yPosition, paint);
             yPosition += 60;
         }
 

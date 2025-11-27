@@ -1,6 +1,11 @@
 package com.example.systemapp.ui.revisiones;
 
+import android.app.Activity;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -9,11 +14,13 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.systemapp.R;
 import com.example.systemapp.data.AdminSQLiteOpenHelperRevisiones;
+import com.example.systemapp.data.model.DBFotoRevision;
 import com.example.systemapp.data.model.DBOrdenRevision;
 import com.example.systemapp.ui.revisiones.tabs.Tab6CierreFragment;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -42,6 +49,7 @@ public class Fragment_form_revision extends Fragment {
 
     private RevisionTabsAdapter tabsAdapter;
     private AdminSQLiteOpenHelperRevisiones dbHelper;
+    private CameraHelper cameraHelper;
 
     public static Fragment_form_revision newInstance(String ordenId) {
         Fragment_form_revision fragment = new Fragment_form_revision();
@@ -62,6 +70,7 @@ public class Fragment_form_revision extends Fragment {
         }
 
         dbHelper = new AdminSQLiteOpenHelperRevisiones(getContext());
+        cameraHelper = new CameraHelper(getContext());
 
         // Inicializar vistas
         tvHeaderMedidor = root.findViewById(R.id.tv_header_medidor);
@@ -136,9 +145,9 @@ public class Fragment_form_revision extends Fragment {
     }
 
     private void setupListeners() {
-        // FAB de cámara (placeholder)
+        // FAB de cámara
         fabCamera.setOnClickListener(v -> {
-            Toast.makeText(getContext(), "Función de cámara en desarrollo", Toast.LENGTH_SHORT).show();
+            abrirCameraGeneral();
         });
 
         // Esperar a que el Tab6 esté creado para agregar listeners
@@ -324,6 +333,83 @@ public class Fragment_form_revision extends Fragment {
                 e.printStackTrace();
             }
         }).start();
+    }
+
+    /**
+     * Abrir cámara para foto general
+     */
+    private void abrirCameraGeneral() {
+        // Verificar permiso
+        if (!cameraHelper.hasPermission()) {
+            cameraHelper.requestPermission(getActivity());
+            return;
+        }
+
+        try {
+            int currentTab = viewPager.getCurrentItem() + 1; // 1-based
+            File photoFile = cameraHelper.createRevisionPhotoFile(
+                orden != null ? orden.getId() : "temp",
+                currentTab
+            );
+
+            if (photoFile != null) {
+                Uri photoURI = FileProvider.getUriForFile(
+                    getContext(),
+                    getContext().getPackageName() + ".fileprovider",
+                    photoFile
+                );
+
+                Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+
+                if (takePictureIntent.resolveActivity(getActivity().getPackageManager()) != null) {
+                    startActivityForResult(takePictureIntent, CameraHelper.REQUEST_IMAGE_CAPTURE);
+                } else {
+                    Toast.makeText(getContext(), "No hay aplicación de cámara disponible", Toast.LENGTH_SHORT).show();
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(getContext(), "Error al abrir cámara: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == CameraHelper.REQUEST_IMAGE_CAPTURE && resultCode == Activity.RESULT_OK) {
+            // Foto capturada exitosamente
+            String photoPath = cameraHelper.getCurrentPhotoPath();
+            int currentTab = viewPager.getCurrentItem() + 1; // 1-based
+
+            // Guardar foto en BD
+            DBFotoRevision foto = new DBFotoRevision();
+            foto.setRevision_id(orden != null ? orden.getId() : "");
+            foto.setTab_numero(currentTab);
+            foto.setRuta_foto(photoPath);
+            foto.setDescripcion("Foto adicional del Tab " + currentTab);
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            foto.setFecha_captura(sdf.format(new Date()));
+
+            dbHelper.insertFotoRevision(foto);
+
+            Toast.makeText(getContext(), "✓ Foto guardada (Tab " + currentTab + ")", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == CameraHelper.REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(getContext(), "Permiso concedido. Intente nuevamente.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(getContext(), "Permiso de cámara denegado", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     @Override
