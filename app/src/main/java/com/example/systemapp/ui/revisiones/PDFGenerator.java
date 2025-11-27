@@ -233,10 +233,26 @@ public class PDFGenerator {
         }
 
         // ========== PIE DE PÁGINA ==========
-        yPosition = PAGE_HEIGHT - 80;
+        yPosition = PAGE_HEIGHT - 100;
         paint.setTextSize(10);
         canvas.drawText("Fecha: " + orden.getFecha_cierre(), MARGIN, yPosition, paint);
         canvas.drawText("Técnico: " + SessionPrefs.get(context).getUsuario(), MARGIN, yPosition + 15, paint);
+
+        // Ubicación GPS
+        if (orden.getLatitud() != null && orden.getLongitud() != null &&
+            !orden.getLatitud().isEmpty() && !orden.getLongitud().isEmpty()) {
+            String ubicacion = String.format("Ubicación GPS: Lat %.6f, Lng %.6f",
+                Double.parseDouble(orden.getLatitud()),
+                Double.parseDouble(orden.getLongitud()));
+            canvas.drawText(ubicacion, MARGIN, yPosition + 30, paint);
+
+            String mapsUrl = String.format("Google Maps: https://maps.google.com/?q=%.6f,%.6f",
+                Double.parseDouble(orden.getLatitud()),
+                Double.parseDouble(orden.getLongitud()));
+            canvas.drawText(mapsUrl, MARGIN, yPosition + 45, paint);
+        } else {
+            canvas.drawText("Ubicación GPS: No registrada", MARGIN, yPosition + 30, paint);
+        }
 
         document.finishPage(page);
 

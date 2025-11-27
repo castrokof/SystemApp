@@ -187,6 +187,10 @@ public class APISync {
         jsonRevision.put("fecha_inicio", orden.getFecha_inicio());
         jsonRevision.put("fecha_cierre", orden.getFecha_cierre());
 
+        // Ubicación GPS
+        jsonRevision.put("latitud", orden.getLatitud());
+        jsonRevision.put("longitud", orden.getLongitud());
+
         // PDF en Base64
         if (orden.getRuta_pdf() != null && !orden.getRuta_pdf().isEmpty()) {
             String pdfBase64 = convertirPDFABase64(orden.getRuta_pdf());

@@ -3,6 +3,7 @@ package com.example.systemapp.ui.revisiones;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -50,6 +51,7 @@ public class Fragment_form_revision extends Fragment {
     private RevisionTabsAdapter tabsAdapter;
     private AdminSQLiteOpenHelperRevisiones dbHelper;
     private CameraHelper cameraHelper;
+    private LocationHelper locationHelper;
 
     public static Fragment_form_revision newInstance(String ordenId) {
         Fragment_form_revision fragment = new Fragment_form_revision();
@@ -71,6 +73,7 @@ public class Fragment_form_revision extends Fragment {
 
         dbHelper = new AdminSQLiteOpenHelperRevisiones(getContext());
         cameraHelper = new CameraHelper(getContext());
+        locationHelper = new LocationHelper(getContext());
 
         // Inicializar vistas
         tvHeaderMedidor = root.findViewById(R.id.tv_header_medidor);
@@ -100,11 +103,13 @@ public class Fragment_form_revision extends Fragment {
                 String tipo = orden.getTipo_desviacion() != null ? orden.getTipo_desviacion() + " CONSUMO" : "N/A";
                 tvHeaderTipo.setText("Tipo: " + tipo);
 
-                // Registrar fecha de inicio si no existe
+                // Registrar fecha de inicio y ubicación si no existe
                 if (orden.getFecha_inicio() == null || orden.getFecha_inicio().isEmpty()) {
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
                     orden.setFecha_inicio(sdf.format(new Date()));
-                    dbHelper.insertOrUpdateRevision(orden, true);
+
+                    // Capturar ubicación GPS al inicio
+                    capturarUbicacionInicio();
                 }
             }
         }
@@ -239,6 +244,11 @@ public class Fragment_form_revision extends Fragment {
         if (!valido) {
             Toast.makeText(getContext(), "Complete todos los campos requeridos", Toast.LENGTH_LONG).show();
             return;
+        }
+
+        // Capturar ubicación GPS al cerrar (si no existe)
+        if (orden.getLatitud() == null || orden.getLatitud().isEmpty()) {
+            capturarUbicacionCierre();
         }
 
         // Marcar como ejecutada
@@ -409,12 +419,92 @@ public class Fragment_form_revision extends Fragment {
             } else {
                 Toast.makeText(getContext(), "Permiso de cámara denegado", Toast.LENGTH_SHORT).show();
             }
+        } else if (requestCode == LocationHelper.REQUEST_LOCATION_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(getContext(), "Permiso de ubicación concedido", Toast.LENGTH_SHORT).show();
+                capturarUbicacionInicio();
+            } else {
+                Toast.makeText(getContext(), "Permiso de ubicación denegado. La ubicación no será registrada.", Toast.LENGTH_LONG).show();
+            }
         }
+    }
+
+    /**
+     * Capturar ubicación GPS al inicio de la revisión
+     */
+    private void capturarUbicacionInicio() {
+        if (!locationHelper.hasPermission()) {
+            locationHelper.requestPermission(getActivity());
+            return;
+        }
+
+        locationHelper.getCurrentLocation(new LocationHelper.LocationCallback() {
+            @Override
+            public void onLocationReceived(Location location) {
+                if (orden != null) {
+                    orden.setLatitud(String.valueOf(location.getLatitude()));
+                    orden.setLongitud(String.valueOf(location.getLongitude()));
+                    dbHelper.insertOrUpdateRevision(orden, true);
+
+                    Toast.makeText(getContext(),
+                        "📍 Ubicación registrada: " + LocationHelper.formatCoordinates(location),
+                        Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onLocationError(String error) {
+                Toast.makeText(getContext(),
+                    "⚠ No se pudo obtener ubicación: " + error,
+                    Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    /**
+     * Capturar ubicación GPS al cerrar la revisión
+     */
+    private void capturarUbicacionCierre() {
+        if (!locationHelper.hasPermission()) {
+            // No solicitar permiso al cerrar, solo registrar sin ubicación
+            return;
+        }
+
+        locationHelper.getCurrentLocation(new LocationHelper.LocationCallback() {
+            @Override
+            public void onLocationReceived(Location location) {
+                if (orden != null) {
+                    orden.setLatitud(String.valueOf(location.getLatitude()));
+                    orden.setLongitud(String.valueOf(location.getLongitude()));
+                    // Se guardará en el método cerrarRevision()
+                }
+            }
+
+            @Override
+            public void onLocationError(String error) {
+                // Silencioso al cerrar, no molestamos al usuario
+            }
+        });
     }
 
     @Override
     public void onPause() {
         super.onPause();
         guardarProgreso();
+
+        // Detener actualizaciones de ubicación
+        if (locationHelper != null) {
+            locationHelper.stopLocationUpdates();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        // Detener actualizaciones de ubicación
+        if (locationHelper != null) {
+            locationHelper.stopLocationUpdates();
+        }
     }
 }
