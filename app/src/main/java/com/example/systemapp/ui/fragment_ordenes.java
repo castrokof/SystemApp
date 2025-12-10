@@ -282,10 +282,10 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
 
         itmPend.setTitle(getString(R.string.bottom_nav_pendientes,
                 mPrefs.getInt("PREF_RUTAS_PENDIENTES", 0)));
-        itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
-                mPrefs.getInt("PREF_RUTAS_REASIGNADAS", 0)));
-        itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
-                mPrefs.getInt("PREF_RUTAS_PROCESADAS", 0)));
+        //itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
+          //      mPrefs.getInt("PREF_RUTAS_REASIGNADAS", 0)));
+        //itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
+              //  mPrefs.getInt("PREF_RUTAS_PROCESADAS", 0)));
 
         //establecer fragment por defecto
         RAsignadasFragment rAsignadasFragment = new RAsignadasFragment();
@@ -294,34 +294,25 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
         changeFragment(rAsignadasFragment, true);
     }
 
-    private BottomNavigationView.OnNavigationItemSelectedListener navListener =
-            new BottomNavigationView.OnNavigationItemSelectedListener() {
-                @Override
-                public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
+    private final BottomNavigationView.OnNavigationItemSelectedListener navListener =
+            item -> {
+                Fragment selectedFragment = null;
+                int itemId = item.getItemId(); // Get the ID once
 
-                    Fragment selectedFragment = null;
+                if (itemId == R.id.nav_pend) {
+                    // Change action bar title
+                    ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(getString(R.string.app_name) + " - List Pendientes");
 
-                    switch (menuItem.getItemId()) {
-                        case R.id.nav_pend:
-                            //selectedFragment = RAsignadasFragment.getInstance(OrdenesFragment.this);
-                            selectedFragment = new RAsignadasFragment();
-                            break;
-                    /*  case R.id.nav_reasig:
-                            selectedFragment = new RAsignadasFragment(); //CierreFragment();
-                            Log.d("fragment", "REASIGNADAS!!");
-                            break;
-                        case R.id.nav_proces:
-                            selectedFragment = new RAsignadasFragment(); //RProcesadasFragment();
-                            Log.d("fragment", "PROCESADAS");
-                            break;*/
-                    }
+                    // Show the RAsignadasFragment
+                    selectedFragment = new RAsignadasFragment();
+                    changeFragment(selectedFragment, false);
+                    return true; // Return true to show the item as selected
 
+                } 
 
-
-                    changeFragment(selectedFragment, true);
-                    return true;
-                }
+                return false; // Return false if the item is not handled
             };
+
 
     private void changeFragment(Fragment fragment, boolean needToAddBackstack) {
         mFragmentManager =  getActivity().getSupportFragmentManager();
@@ -372,10 +363,10 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
     public void onCantChange(String cantpendientes, String cantreasig, String cantproces) {
         itmPend.setTitle(getString(R.string.bottom_nav_pendientes,
                 Integer.parseInt(cantpendientes)));
-        itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
-                Integer.parseInt(cantreasig)));
-        itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
-                Integer.parseInt(cantproces)));
+       // itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
+       //         Integer.parseInt(cantreasig)));
+       // itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
+        //        Integer.parseInt(cantproces)));
         Log.d("OrdenesFragment", "PROCESADAS");
     }
 

@@ -174,34 +174,34 @@ public class fragment_ejecutadas extends Fragment implements REjecutadasFragment
         changeFragment(rEjecutadasFragment, true);
     }
 
+
+
     private BottomNavigationView.OnNavigationItemSelectedListener navListener =
             new BottomNavigationView.OnNavigationItemSelectedListener() {
                 @Override
                 public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
 
                     Fragment selectedFragment = null;
+                    int itemId = menuItem.getItemId();
 
-                    switch (menuItem.getItemId()) {
-                     /*    case R.id.nav_pend:
-                            //selectedFragment = RAsignadasFragment.getInstance(OrdenesFragment.this);
-                            selectedFragment = new RAsignadasFragment();
-                            break;
-                      case R.id.nav_reasig:
-                            selectedFragment = new RAsignadasFragment(); //CierreFragment();
-                            Log.d("fragment", "REASIGNADAS!!");
-                            break;*/
-                       case R.id.nav_proces:
-                            selectedFragment = new REjecutadasFragment(); //RProcesadasFragment();
-                            Log.d("fragment", "PROCESADAS");
-                            break;
+                    // FIX: Replaced switch with if-else if block
+                    if (itemId == R.id.nav_proces) {
+                        selectedFragment = new REjecutadasFragment(); //RProcesadasFragment();
+                        Log.d("fragment", "PROCESADAS");
                     }
 
 
+                    // It's good practice to check if a fragment was selected before changing it
+                    if (selectedFragment != null) {
+                        changeFragment(selectedFragment, true);
+                    }
 
-                    changeFragment(selectedFragment, true);
                     return true;
                 }
             };
+
+
+
 
     private void changeFragment(Fragment fragment, boolean needToAddBackstack) {
         mFragmentManager =  getActivity().getSupportFragmentManager();

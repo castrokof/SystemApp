@@ -8,4 +8,12 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- iOS System Colors -->
+    <color name="ios_blue">#0052FF</color>
+    <color name="ios_teal">#00D4AA</color>
+    <color name="ios_red">#FF3B30</color>
+    <color name="ios_background">#F2F2F7</color>
+    <color name="ios_label">#1C1C1E</color>
+    <color name="ios_secondary_label">#3C3C43</color>
+    <color name="ios_glass">#F0FFFFFF</color>
 </resources>

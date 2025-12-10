@@ -107,7 +107,7 @@ public class RAsignadasFragment extends Fragment {
 
     }
 
-        Parcelable state;
+    Parcelable state;
 
 
 
@@ -390,7 +390,7 @@ public class RAsignadasFragment extends Fragment {
         transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN);
         transaction.addToBackStack(null);
         transaction.commit();
-                    }
+    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {

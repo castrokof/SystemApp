@@ -131,37 +131,35 @@ public class MainActivity extends AppCompatActivity {
 
 
 
+    // In C:/Documentos/Castro/Webaguas/SystemApp_nueva/SystemApp/app/src/main/java/com/example/systemapp/MainActivity.java
+
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        Fragment fragment = null;
-        Bundle bund = new Bundle();
-
-
         int id = item.getItemId();
-        switch (id){
-            case R.id.action_settings:
 
-                Toast.makeText(MainActivity.this, "Cerrando usuario: "+mPrefs.getString("PREF_USER_NAME", ""), Toast.LENGTH_LONG).show();
+        // Use if-else if instead of switch
+        if (id == R.id.action_settings) {
+            Toast.makeText(MainActivity.this, "Cerrando usuario: " + mPrefs.getString("PREF_USER_NAME", ""), Toast.LENGTH_LONG).show();
 
-                SessionPrefs.get(this).logOut();
-                startActivity(new Intent(this   , MainActivity.class));
+            SessionPrefs.get(this).logOut();
+            startActivity(new Intent(this, MainActivity.class));
 
-                finish();
+            finish();
 
-                break;
-
+            // It's good practice to return true when you've handled the item click.
+            return true;
         }
+        // You could add more 'else if' blocks here for other menu items.
+    /*
+    else if (id == R.id.another_action) {
+        // Handle another action
+        return true;
+    }
+    */
 
-        /*if (item.getItemId() == android.R.id.home) {
-            Log.i("MainPanel", "onOptionsItemSelected: Home Button Clicked");
-            if (drawer.isDrawerOpen(GravityCompat.START)) {
-                drawer.closeDrawer(GravityCompat.START);
-            } else {
-                drawer.openDrawer(GravityCompat.START);
-            }
-        }*/
         return super.onOptionsItemSelected(item);
     }
+
 
 
 
