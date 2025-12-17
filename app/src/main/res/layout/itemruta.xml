@@ -1,99 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="?android:attr/activatedBackgroundIndicator">
+    android:layout_height="wrap_content"
+    android:layout_marginStart="16dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="#E0E0E0"
+    app:cardBackgroundColor="#FFFFFF">
 
-    <LinearLayout
-        android:id="@+id/thumbnail"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_alignParentLeft="true"
-        android:layout_marginStart="5dp"
-        android:layout_marginTop="5dp"
-        android:layout_marginEnd="5dp"
-        android:layout_marginBottom="5dp"
-        android:orientation="horizontal"
-        android:padding="3dp">
-
-    </LinearLayout>
-
-
-
-    <TextView
-        android:id="@+id/txtMedidor"
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignTop="@id/thumbnail"
-        android:layout_toRightOf="@id/thumbnail"
-        android:textColor="#0422E3"
-        android:text=""
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingTop="5dp"
-        android:textSize="20dp"
-        android:fontFamily="sans-serif-black"
-        android:textStyle="italic"/>
+        android:padding="16dp"
+        android:background="?android:attr/selectableItemBackground">
 
+        <!-- Thumbnail circular -->
 
+        <!-- Contenedor de texto -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toStartOf="@id/imgItem"
+            android:layout_centerVertical="true"
+            android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/txtDireccion"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@id/txtMedidor"
-        android:textColor="#546e7a"
-        android:text=""
-        android:textSize="16dp"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:fontFamily="sans-serif-black"
-        android:textStyle="italic"
-        android:layout_marginTop="1dp"
-        android:layout_toRightOf="@id/thumbnail"
-        android:drawableLeft="@drawable/ic_dir"/>
+            <!-- Medidor -->
+            <TextView
+                android:id="@+id/txtMedidor"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MED-12345"
+                android:textColor="#0052FF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:layout_marginBottom="4dp" />
 
+            <!-- Dirección -->
+            <TextView
+                android:id="@+id/txtDireccion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Calle 123 # 45-67"
+                android:textColor="#546e7a"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:drawableStart="@drawable/ic_dir"
+                android:drawablePadding="4dp"
+                android:drawableTint="#8E8E93"
+                android:layout_marginBottom="2dp" />
 
-    <TextView
-        android:id="@+id/txtRuta"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@id/txtDireccion"
-        android:textColor="#3B4D55"
-        android:text=""
-        android:textSize="16dp"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:fontFamily="sans-serif-thin"
-        android:textStyle="bold"
-        android:layout_marginTop="1dp"
-        android:layout_toRightOf="@id/thumbnail"
-        android:drawableLeft="@drawable/ic_ruta"/>
+            <!-- Ruta -->
+            <TextView
+                android:id="@+id/txtRuta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ruta 001"
+                android:textColor="#3B4D55"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif"
+                android:textStyle="bold"
+                android:drawableStart="@drawable/ic_ruta"
+                android:drawablePadding="4dp"
+                android:drawableTint="#8E8E93"
+                android:layout_marginBottom="2dp" />
 
-    <TextView
-        android:id="@+id/txtNombre"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/txtRuta"
-        android:layout_marginTop="5dp"
-        android:layout_toRightOf="@id/thumbnail"
-        android:fontFamily="sans-serif-thin"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:textColor="@color/black"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:drawableLeft="@drawable/ic_user"/>
+            <!-- Nombre -->
+            <TextView
+                android:id="@+id/txtNombre"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Juan Pérez"
+                android:textColor="#1C1C1E"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:drawableStart="@drawable/ic_user"
+                android:drawablePadding="4dp"
+                android:drawableTint="#8E8E93" />
+        </LinearLayout>
 
-    <ImageView
-        android:id="@+id/imgItem"
-        android:layout_width="100dp"
-        android:layout_height="70dp"
-        android:layout_alignParentEnd="true"
-        android:layout_marginEnd="19dp"
-        android:elevation="10dp"
-        android:paddingLeft="16dp"
-        tools:visibility="gone" />
+        <!-- Imagen directamente como ImageView (compatible con código original) -->
+        <ImageView
+            android:id="@+id/imgItem"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="@drawable/bg_image_circle"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:visibility="visible" />
 
-</RelativeLayout>
+    </RelativeLayout>
+
+</com.google.android.material.card.MaterialCardView>

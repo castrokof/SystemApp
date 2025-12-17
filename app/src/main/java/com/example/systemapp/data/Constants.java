@@ -25,5 +25,5 @@ public class Constants {
         this.ip = ip;
     }
 
-    public static String BASE_URL = "https://"+ip+BASE_API;
+    public static String BASE_URL = "https://"+IP_DEF+BASE_API;
 }

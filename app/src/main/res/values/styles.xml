@@ -1,0 +1,16 @@
+<resources>
+    <!-- Tus estilos existentes... -->
+
+    <!-- Estilo para texto activo en BottomNav -->
+    <style name="BottomNavTextActive" parent="TextAppearance.AppCompat.Caption">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- Estilo para texto inactivo en BottomNav -->
+    <style name="BottomNavTextInactive" parent="TextAppearance.AppCompat.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="fontFamily">sans-serif</item>
+    </style>
+</resources>

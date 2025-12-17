@@ -257,11 +257,16 @@ public class REjecutadasFragment extends Fragment {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
 
-                posicionRuta = position;
+                posicionRuta = getAbsolutePosition(allRutas, adaptador.getItem(position).getId());
                 openSelectedRoute(allRutas, posicionRuta);
 
             }
         });
+
+
+
+
+
 
 
         //action to search
@@ -273,20 +278,20 @@ public class REjecutadasFragment extends Fragment {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                allRutas = adminSQLiteOpenHelper.getData("lecturas",
-                        "tipo_orden = 'RUTAS' AND categoria_orden = 'RELECTURA' AND medidor like " +
-                                "'%"+s.toString().trim().toUpperCase()+"%'");
-                //adaptador.getFilter().filter(s);
-                adaptador = new Adaptador(getActivity(), (ArrayList) allRutas);
-                listaItems.setAdapter(adaptador);
-                SessionPrefs.get(getActivity()).setPrefRutasProcesadas(allRutas.size());
-                if (parentFragment != null) {
-                    parentFragment.setCantidades(mPrefs.getInt("PREF_RUTAS_PENDIENTES", 0) + "",
-                            mPrefs.getInt("PREF_RUTAS_REASIGNADAS", 0) + "",
-                            allRutas.size() + "");
-                    Log.d("RAsignadasFragment", "Actualizando cantidades...");
-                }
-                System.out.println("Nuevo tamaño"+adaptador.getCount());
+                //allRutas = adminSQLiteOpenHelper.getData("lecturas",
+                  //      "tipo_orden = 'RUTAS' AND categoria_orden = 'RELECTURA' AND medidor like " +
+                    //            "'%"+s.toString().trim().toUpperCase()+"%'");
+                adaptador.getFilter().filter(s);
+                //adaptador = new Adaptador(getActivity(), (ArrayList) allRutas);
+                //listaItems.setAdapter(adaptador);
+                //SessionPrefs.get(getActivity()).setPrefRutasProcesadas(allRutas.size());
+                //if (parentFragment != null) {
+                  //  parentFragment.setCantidades(mPrefs.getInt("PREF_RUTAS_PENDIENTES", 0) + "",
+                    //        mPrefs.getInt("PREF_RUTAS_REASIGNADAS", 0) + "",
+                      //      allRutas.size() + "");
+                    //Log.d("RAsignadasFragment", "Actualizando cantidades...");
+                //}
+                //System.out.println("Nuevo tamaño"+adaptador.getCount());
             }
 
             @Override
@@ -354,6 +359,15 @@ public class REjecutadasFragment extends Fragment {
             }
         }
         return ordenesContrato;
+    }
+
+    public static int getAbsolutePosition(List<DBOrdenLecturas> ordenes, String idreg) {
+        for (int i = 0; i < ordenes.size(); i++) {
+            if (ordenes.get(i).getId().equals(idreg)) {
+                return i;
+            }
+        }
+        return 0;
     }
 
 

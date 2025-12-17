@@ -94,10 +94,9 @@ public class fragment_ejecutadas extends Fragment implements REjecutadasFragment
 
         //showProgress(true);
 
-        //set titles for options on nav
 
-        //itmPend =  bottomNav.getMenu().findItem(R.id.nav_pend);
-       // itmreasig =  bottomNav.getMenu().findItem(R.id.nav_reasig);
+
+
         itmProces =  bottomNav.getMenu().findItem(R.id.nav_proces);
 
        // itmPend.setTitle(getString(R.string.bottom_nav_pendientes, 0));
@@ -175,33 +174,24 @@ public class fragment_ejecutadas extends Fragment implements REjecutadasFragment
     }
 
 
+    private final BottomNavigationView.OnNavigationItemSelectedListener navListener =
+            item -> {
+                Fragment selectedFragment = null;
+                int itemId = item.getItemId(); // Get the ID once
 
-    private BottomNavigationView.OnNavigationItemSelectedListener navListener =
-            new BottomNavigationView.OnNavigationItemSelectedListener() {
-                @Override
-                public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
+                if (itemId == R.id.nav_proces) {
+                    // Change action bar title
+                    ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(getString(R.string.app_name) + " - List Ejecutadas");
 
-                    Fragment selectedFragment = null;
-                    int itemId = menuItem.getItemId();
+                    // Show the RAsignadasFragment
+                    selectedFragment = new REjecutadasFragment();
+                    changeFragment(selectedFragment, false);
+                    return true; // Return true to show the item as selected
 
-                    // FIX: Replaced switch with if-else if block
-                    if (itemId == R.id.nav_proces) {
-                        selectedFragment = new REjecutadasFragment(); //RProcesadasFragment();
-                        Log.d("fragment", "PROCESADAS");
-                    }
-
-
-                    // It's good practice to check if a fragment was selected before changing it
-                    if (selectedFragment != null) {
-                        changeFragment(selectedFragment, true);
-                    }
-
-                    return true;
                 }
+
+                return false; // Return false if the item is not handled
             };
-
-
-
 
     private void changeFragment(Fragment fragment, boolean needToAddBackstack) {
         mFragmentManager =  getActivity().getSupportFragmentManager();
@@ -215,17 +205,12 @@ public class fragment_ejecutadas extends Fragment implements REjecutadasFragment
 
 
 
-    private void showProgress(boolean show) {
-        linearLayout.setVisibility(show ? View.VISIBLE : View.GONE);
-    }
+
 
 
 
     public void setCantidades(String cantpendientes, String cantreasig, String cantproces) {
-        //itmPend.setTitle(getString(R.string.bottom_nav_pendientes,
-           //     Integer.parseInt(cantpendientes)));
-       // itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
-             //   Integer.parseInt(cantreasig)));
+
         itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
          Integer.parseInt(cantproces)));
         Log.d("OrdenesFragment", "Actualizando cantidades");

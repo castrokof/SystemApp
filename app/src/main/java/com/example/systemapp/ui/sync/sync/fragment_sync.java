@@ -97,7 +97,7 @@ public class fragment_sync extends Fragment {
         ActionBar actionBar = ((AppCompatActivity) getActivity()).getSupportActionBar();
         if (actionBar != null) {
             actionBar.setDisplayShowCustomEnabled(false);
-            actionBar.setTitle(getString(R.string.app_name));
+            actionBar.setTitle(getString(R.string.app_name) + " Sync Ordenes");
         }
 
         binding = FragmentSyncBinding.inflate(inflater, container, false);

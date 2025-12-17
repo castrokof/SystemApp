@@ -2,6 +2,7 @@ package com.example.systemapp;
 
 import android.content.SharedPreferences;
 
+import com.example.systemapp.data.Constants;
 import com.example.systemapp.data.model.DBListas;
 import com.example.systemapp.data.model.DBOrdenLecturas;
 import com.example.systemapp.data.model.DBOrdenLecturasEnviar;
@@ -26,20 +27,18 @@ import retrofit2.http.POST;
 
 public interface SystemAppAPI{
 
-    public static final String BASE_URL = "https://manteliviano.com/AquaProgrammerData/api/";
+    public static final String BASE_URL = Constants.BASE_URL;;
 
 
     @POST("loginMovil1")
     Call<List<LoginRespuesta>> login(@Body LoginEnvio loginEnvio);
 
-    //@POST("medidoresout")
-    //Call<List<DBOrdenLecturas>> cargue(@Body LoginEnvio loginEnvio);
+
 
     @POST("medidoresout")
     Call<List<DBOrdenLecturas>> cargue();
 
-    //@POST("marcas")
-    //Call<List<DBListas>> listas(@Body LoginEnvio loginEnvio);
+
 
     @POST("marcas")
     Call<List<DBListas>> listas();

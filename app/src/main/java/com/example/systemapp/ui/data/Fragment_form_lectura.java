@@ -160,6 +160,8 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     private FloatingActionButton btnSave;
     private SwitchMaterial switchMotivo;
     private TextView textVmotivov;
+
+
     private FloatingActionButton btnLecturaMotivoClose;
 
     private FloatingActionButton btnLecturaImprimir;
@@ -836,8 +838,10 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             return;
         }
 
+        Log.d(TAG, "🔍 DEBUG - Causa: " + orden.getCausa() + ", Lectura: " + orden.getLectura_actual());
+
         // ✅ VALIDACIÓN 3: Tiene lectura 0 sin crítica → error
-        if (tieneLectura) {
+        if (tieneLectura && !tieneCausa) {
             int lectura = Integer.parseInt(orden.getLectura_actual().toString());
             if (lectura == 0 && !tieneCritica) {
                 Log.e(TAG, "❌ Registro inválido: lectura 0 sin crítica");
@@ -859,7 +863,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         }
 
         orden.setEstado_lectura("RELECTURA");//RELECTURA indicará lectura realizada, es decir que
-        //va a aparecer en la pestaña de ordenes o lecturas "Procesadas"
+        //va a aparecer en la pestaña de ordenes o lecturas "EJecutadas"
         orden.setCategoria_orden("RELECTURA");
         orden.setFfinlec(new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date()));
 
@@ -1128,9 +1132,28 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             if (actionBar != null) {
                 actionBar.setDisplayHomeAsUpEnabled(true);
                 actionBar.setDisplayShowCustomEnabled(true);
-                LayoutInflater inflator = (LayoutInflater) getActivity().getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-                View v = inflator.inflate(R.layout.title_actionbar_lectura, null);
-                actionBar.setCustomView(v);
+
+                LayoutInflater inflater = getActivity().getLayoutInflater(); // más limpio que getSystemService
+                View customView = inflater.inflate(R.layout.title_actionbar_lectura, null);
+
+                // 🔹 Obtén el TextView y asigna el valor de orden.getRef_Medidor()
+                TextView tvTitle = customView.findViewById(R.id.textViewMedidorActionBar);
+                TextView tvTitleNuip = customView.findViewById(R.id.textViewSuscriptorActionBar);
+
+                if (orden != null && orden.getRef_Medidor() != null) {
+                    tvTitle.setText("Med: " + orden.getRef_Medidor());
+                    tvTitleNuip.setText("Sus: "+orden.getSuscriptor());
+                } else {
+                    tvTitle.setText("Sin referencia");
+                }
+
+                // Opcional: ajustar layout params para que ocupe todo el ancho
+                ActionBar.LayoutParams params = new ActionBar.LayoutParams(
+                        ActionBar.LayoutParams.MATCH_PARENT,
+                        ActionBar.LayoutParams.MATCH_PARENT
+                );
+                actionBar.setCustomView(customView, params);
+
             } else {
                 Log.d("Fragment_form_lectura", "ActionBar es null");
             }
@@ -1165,6 +1188,12 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
             // 🔹 Si está en modo edición
             if (edit && orden != null) {
+
+                binding.switchMotivo.setEnabled(false);
+                binding.btnSave.setEnabled(false);
+                binding.editTextObservacionG.setEnabled(false);
+                binding.switchMotivo.setEnabled(false);
+
                 if (orden.getConsumo() != null && orden.getConsumo() != 0) {
                     binding.editTextLectura.setText(String.valueOf(orden.getLectura_actual()));
                     binding.editTextLectura.setEnabled(false);
@@ -1388,12 +1417,44 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         }
 
         try {
-            // ✅ Cancelar discovery antes de conectar
-            if (bluetoothAdapter.isDiscovering()) {
+            // Cancelar discovery
+            if (bluetoothAdapter != null && bluetoothAdapter.isDiscovering()) {
                 bluetoothAdapter.cancelDiscovery();
             }
 
-            // ✅ Cerrar socket anterior si existe
+            // 🔥 VALIDAR Y OBTENER DISPOSITIVO DE LA MAC GUARDADA
+            SharedPreferences prefs = getActivity().getSharedPreferences("SYSTEMAPP_PREFS", Context.MODE_PRIVATE);
+            String savedMac = prefs.getString("PREF_PRINTER_MAC", null);
+            int savedChannel = prefs.getInt("PREF_PRINTER_CHANNEL", 1);
+
+            // Si no hay MAC guardada, no intentar conectar
+            if (savedMac == null || savedMac.isEmpty()) {
+                Log.d("Fragment_form_lectura", "No hay impresora configurada");
+                printExist = false;
+                return;
+            }
+
+            // Verificar BluetoothAdapter
+            if (bluetoothAdapter == null) {
+                bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            }
+
+            if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
+                Log.d("Fragment_form_lectura", "Bluetooth no disponible o deshabilitado");
+                printExist = false;
+                return;
+            }
+
+            // Obtener dispositivo por MAC
+            bluetoothDevice = bluetoothAdapter.getRemoteDevice(savedMac);
+
+            if (bluetoothDevice == null) {
+                Log.e("Fragment_form_lectura", "Dispositivo Bluetooth no encontrado");
+                printExist = false;
+                return;
+            }
+
+            // Cerrar socket anterior si existe
             if (bluetoothSocket != null) {
                 try {
                     bluetoothSocket.close();
@@ -1402,10 +1463,14 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 }
             }
 
-            // Standard SerialPortService ID
-            UUID uuidSting = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
+            Log.d("Fragment_form_lectura", "Usando canal guardado: " + savedChannel);
 
-            bluetoothSocket = bluetoothDevice.createRfcommSocketToServiceRecord(uuidSting);
+            // Usar reflexión con el canal guardado
+            java.lang.reflect.Method m = bluetoothDevice.getClass().getMethod(
+                    "createRfcommSocket",
+                    new Class[]{int.class}
+            );
+            bluetoothSocket = (BluetoothSocket) m.invoke(bluetoothDevice, savedChannel);
             bluetoothSocket.connect();
 
             outputStream = bluetoothSocket.getOutputStream();
@@ -1413,33 +1478,19 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
             beginListenForData();
 
-            Log.d("Fragment_form_lectura", "✅ Bluetooth conectado exitosamente");
+            Log.d("Fragment_form_lectura", "✅ Bluetooth conectado exitosamente en canal " + savedChannel);
+            printExist = true;
 
         } catch (IOException e) {
             Log.e("Fragment_form_lectura", "❌ Error en conexión Bluetooth", e);
             printExist = false;
-
-            // ✅ Método alternativo (reflexión) - útil para algunas impresoras
-            try {
-                Log.d("Fragment_form_lectura", "Intentando método alternativo...");
-                Method m = bluetoothDevice.getClass().getMethod("createRfcommSocket", new Class[]{int.class});
-                bluetoothSocket = (BluetoothSocket) m.invoke(bluetoothDevice, 1);
-                bluetoothSocket.connect();
-
-                outputStream = bluetoothSocket.getOutputStream();
-                inputStream = bluetoothSocket.getInputStream();
-
-                beginListenForData();
-
-                Log.d("Fragment_form_lectura", "✅ Conectado con método alternativo");
-                printExist = true;
-            } catch (Exception e2) {
-                Log.e("Fragment_form_lectura", "❌ Falló método alternativo", e2);
-                throw new IOException("No se pudo conectar a la impresora: " + e.getMessage());
-            }
+            throw e;
+        } catch (Exception e) {
+            Log.e("Fragment_form_lectura", "❌ Error general", e);
+            printExist = false;
+            throw new IOException("Error al conectar: " + e.getMessage());
         }
     }
-
     void beginListenForData() {
         try {
             // ✅ CRÍTICO: Usar Looper del hilo principal

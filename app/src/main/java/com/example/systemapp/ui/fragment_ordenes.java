@@ -68,8 +68,6 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
 
     //Items del BottomNav
     private static MenuItem itmPend;
-    private static MenuItem itmreasig;
-    private static MenuItem itmProces;
 
     private LinearLayout linearLayout;
 
@@ -282,10 +280,7 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
 
         itmPend.setTitle(getString(R.string.bottom_nav_pendientes,
                 mPrefs.getInt("PREF_RUTAS_PENDIENTES", 0)));
-        //itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
-          //      mPrefs.getInt("PREF_RUTAS_REASIGNADAS", 0)));
-        //itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
-              //  mPrefs.getInt("PREF_RUTAS_PROCESADAS", 0)));
+
 
         //establecer fragment por defecto
         RAsignadasFragment rAsignadasFragment = new RAsignadasFragment();
@@ -335,10 +330,7 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
     public void setCantidades(String cantpendientes, String cantreasig, String cantproces) {
         itmPend.setTitle(getString(R.string.bottom_nav_pendientes,
                 Integer.parseInt(cantpendientes)));
-       // itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
-             //   Integer.parseInt(cantreasig)));
-        //itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
-              //  Integer.parseInt(cantproces)));
+
         Log.d("OrdenesFragment", "Actualizando cantidades");
     }
 
@@ -363,10 +355,7 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
     public void onCantChange(String cantpendientes, String cantreasig, String cantproces) {
         itmPend.setTitle(getString(R.string.bottom_nav_pendientes,
                 Integer.parseInt(cantpendientes)));
-       // itmreasig.setTitle(getString(R.string.bottom_nav_reasignadas,
-       //         Integer.parseInt(cantreasig)));
-       // itmProces.setTitle(getString(R.string.bottom_nav_procesadas,
-        //        Integer.parseInt(cantproces)));
+
         Log.d("OrdenesFragment", "PROCESADAS");
     }
 
