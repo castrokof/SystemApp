@@ -739,22 +739,35 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             photoFile = GuardarFotos.createImageFile(getActivity(), idOrden);
         } catch (IOException ex) {
             Log.e("Error", ex.toString());
-
+            Toast.makeText(getActivity(), "Error al crear archivo de foto", Toast.LENGTH_SHORT).show();
+            return;
         }
         // Continue only if the File was successfully created
         if (photoFile != null) {
-            Uri photoURI = FileProvider.getUriForFile(getActivity(),
-                    "com.example.systemapp.fileprovider",
-                    photoFile);
-            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-            startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-            //mostrar mensaje si existe
-            if (mensajesFotos != null) {
-                Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
-            }
+            try {
+                Uri photoURI = FileProvider.getUriForFile(getActivity(),
+                        "com.example.systemapp.fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                // Agregar flags para liberar recursos de cámara más rápido
+                takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
-            Log.d("Fragment_form_lectura", GuardarFotos.currentPhotoPath + " aquí estaría");
-            Log.d("Fragment_form_lectura", photoURI.getPath() + " aquí estaría");
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+
+                //mostrar mensaje si existe
+                if (mensajesFotos != null && mensajesFotos.size() > 0) {
+                    Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+                }
+
+                Log.d("Fragment_form_lectura", GuardarFotos.currentPhotoPath + " aquí estaría");
+                Log.d("Fragment_form_lectura", photoURI.getPath() + " aquí estaría");
+            } catch (Exception e) {
+                Log.e("Fragment_form_lectura", "Error al crear URI: " + e.getMessage());
+                Toast.makeText(getActivity(), "Error al iniciar cámara", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(getActivity(), "No se pudo crear archivo para la foto", Toast.LENGTH_SHORT).show();
         }
 
         //}
@@ -768,23 +781,46 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             //Bitmap imageBitmap = (Bitmap) extras.get("data");
             //imageView.setImageBitmap(imageBitmap);
 
-            //almacenar la ruta de la foto
-            orden.setRuta_foto((orden.getRuta_foto() == null) ? GuardarFotos.currentPhotoPath : orden.getRuta_foto() + ", " + GuardarFotos.currentPhotoPath);
-            Log.d("Fragment_form_lectura", "ruta_foto " + orden.getRuta_foto());
+            // Procesar en background para evitar bloqueo de UI
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    // Verificar que el archivo existe antes de guardarlo
+                    if (GuardarFotos.currentPhotoPath != null) {
+                        File photoFile = new File(GuardarFotos.currentPhotoPath);
+                        if (photoFile.exists()) {
+                            //almacenar la ruta de la foto
+                            orden.setRuta_foto((orden.getRuta_foto() == null) ? GuardarFotos.currentPhotoPath : orden.getRuta_foto() + ", " + GuardarFotos.currentPhotoPath);
+                            Log.d("Fragment_form_lectura", "ruta_foto " + orden.getRuta_foto());
 
-            cantidadFotos--;
-            if (cantidadFotos > 0) {
-                if (mensajesFotos != null) {
-                    mensajesFotos.remove(0);
-                    Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+                            cantidadFotos--;
+                            if (cantidadFotos > 0) {
+                                if (mensajesFotos != null && mensajesFotos.size() > 0) {
+                                    mensajesFotos.remove(0);
+                                    if (mensajesFotos.size() > 0) {
+                                        Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+                                    }
+                                }
+                                // Agregar pequeño delay antes de abrir cámara nuevamente
+                                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                    dispatchTakePictureIntent(orden.getId());
+                                }, 300);
+                            } else {
+                                if (!fotoAdicional)
+                                    finalizarRegistroLectura();
+                                else
+                                    fotoAdicional = false;
+                            }
+                        } else {
+                            Log.e("Fragment_form_lectura", "El archivo de foto no existe");
+                            Toast.makeText(getActivity(), "Error: foto no guardada correctamente", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e("Fragment_form_lectura", "Error al procesar foto: " + e.getMessage());
+                    Toast.makeText(getActivity(), "Error al procesar la foto", Toast.LENGTH_SHORT).show();
                 }
-                dispatchTakePictureIntent(orden.getId());
-            } else {
-                if (!fotoAdicional)
-                    finalizarRegistroLectura();
-                else
-                    fotoAdicional = false;
-            }
+            }, 100); // Pequeño delay para liberar recursos de cámara
+
         } else {
 
             if (requestCode == REQUEST_ENABLE_BT) {
@@ -794,7 +830,10 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 if (!fotoAdicional) {
                     //sino indica que no se tomó foto y se obliga a que se tome
                     Toast.makeText(getActivity(), getString(R.string.foto_req), Toast.LENGTH_SHORT).show();
-                    dispatchTakePictureIntent(orden.getId());
+                    // Agregar delay antes de reintentar
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        dispatchTakePictureIntent(orden.getId());
+                    }, 300);
                 } else
                     fotoAdicional = false;
             }
