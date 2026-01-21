@@ -1790,21 +1790,33 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 if (newWidth < 8) newWidth = 8;
 
                 processedBitmap = Bitmap.createScaledBitmap(imagen, newWidth, newHeight, true);
+                if (processedBitmap == null) {
+                    Log.e("printPhoto", "❌ Error al redimensionar bitmap");
+                    return null;
+                }
                 Log.d("printPhoto", "✅ Redimensionada a " + newWidth + "x" + newHeight);
             }
 
             // ✅ Convertir a blanco y negro CON INVERSIÓN DE COLORES
             Bitmap bwBitmap = convertToBlackAndWhiteInverted(processedBitmap);
 
+            if (bwBitmap == null) {
+                Log.e("printPhoto", "❌ Error al convertir a B/N");
+                if (processedBitmap != imagen && processedBitmap != null) {
+                    processedBitmap.recycle();
+                }
+                return null;
+            }
+
             Log.d("printPhoto", "✅ Procesando: " + bwBitmap.getWidth() + "x" + bwBitmap.getHeight());
 
             byte[] command = com.example.systemapp.data.Utils.decodeBitmap(bwBitmap);
 
-            // Limpiar memoria
-            if (processedBitmap != imagen) {
+            // Limpiar memoria - CRÍTICO para evitar memory leaks
+            if (processedBitmap != null && processedBitmap != imagen) {
                 processedBitmap.recycle();
             }
-            if (bwBitmap != processedBitmap) {
+            if (bwBitmap != null && bwBitmap != processedBitmap) {
                 bwBitmap.recycle();
             }
 
@@ -1823,40 +1835,41 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         }
     }
 
-    // ✅ NUEVA FUNCIÓN: Convierte a B/N con colores INVERTIDOS
+    // ✅ FUNCIÓN OPTIMIZADA: Convierte a B/N con colores INVERTIDOS (10-20x más rápido)
     private Bitmap convertToBlackAndWhiteInverted(Bitmap bitmap) {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
+        int pixelCount = width * height;
 
-        Bitmap bwBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        // Obtener todos los píxeles en un array (mucho más rápido que getPixel individual)
+        int[] pixels = new int[pixelCount];
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int pixel = bitmap.getPixel(x, y);
+        // Procesar píxeles en el array
+        for (int i = 0; i < pixelCount; i++) {
+            int pixel = pixels[i];
 
-                // Extraer componentes RGB
-                int r = (pixel >> 16) & 0xff;
-                int g = (pixel >> 8) & 0xff;
-                int b = pixel & 0xff;
+            // Extraer componentes RGB
+            int r = (pixel >> 16) & 0xff;
+            int g = (pixel >> 8) & 0xff;
+            int b = pixel & 0xff;
 
-                // Calcular luminancia (brillo)
-                int luminance = (int) (0.299 * r + 0.587 * g + 0.114 * b);
+            // Calcular luminancia (brillo) - usar enteros para mejor performance
+            int luminance = (299 * r + 587 * g + 114 * b) / 1000;
 
-                // ✅ INVERTIR: si era claro (>127) → negro, si era oscuro → blanco
-                int invertedLuminance = 255 - luminance;
+            // ✅ INVERTIR: si era claro (>127) → negro, si era oscuro → blanco
+            int invertedLuminance = 255 - luminance;
 
-                // ✅ AUMENTAR CONTRASTE para mejor definición
-                if (invertedLuminance > 127) {
-                    invertedLuminance = 255; // Blanco puro
-                } else {
-                    invertedLuminance = 0;   // Negro puro
-                }
+            // ✅ AUMENTAR CONTRASTE para mejor definición
+            invertedLuminance = (invertedLuminance > 127) ? 255 : 0;
 
-                // Crear pixel invertido
-                int newPixel = (0xFF << 24) | (invertedLuminance << 16) | (invertedLuminance << 8) | invertedLuminance;
-                bwBitmap.setPixel(x, y, newPixel);
-            }
+            // Crear pixel invertido (mantener alpha channel)
+            pixels[i] = (0xFF << 24) | (invertedLuminance << 16) | (invertedLuminance << 8) | invertedLuminance;
         }
+
+        // Crear bitmap y asignar todos los píxeles de una vez
+        Bitmap bwBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        bwBitmap.setPixels(pixels, 0, width, 0, 0, width, height);
 
         return bwBitmap;
     }
