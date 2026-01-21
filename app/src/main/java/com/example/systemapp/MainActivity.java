@@ -51,6 +51,8 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private FragmentManager mFragmentManager;
     public static SharedPreferences mPrefs;
+    private long backPressedTime;
+    private Toast backToast;
 
 
     @Override
@@ -193,8 +195,27 @@ public class MainActivity extends AppCompatActivity {
 
         if ((getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_content_main) instanceof fragment_sync)) {
             return;
-        }else
+        }
+
+        // Verificar si estamos en un destino de nivel superior
+        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
+        if (mAppBarConfiguration.getTopLevelDestinations().contains(navController.getCurrentDestination().getId())) {
+            // Estamos en una pantalla principal - implementar doble presión para salir
+            if (backPressedTime + 2000 > System.currentTimeMillis()) {
+                // Si presionó back hace menos de 2 segundos, cerrar la aplicación
+                if (backToast != null) backToast.cancel();
+                finishAffinity();
+                return;
+            } else {
+                // Primera presión, mostrar mensaje
+                backToast = Toast.makeText(this, "Presiona nuevamente para salir", Toast.LENGTH_SHORT);
+                backToast.show();
+            }
+            backPressedTime = System.currentTimeMillis();
+        } else {
+            // No estamos en una pantalla principal, comportamiento normal
             super.onBackPressed();
+        }
 
     }
 
