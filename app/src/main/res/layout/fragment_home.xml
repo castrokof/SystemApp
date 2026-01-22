@@ -49,7 +49,7 @@
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         >
         <EditText
             android:layout_width="match_parent"
@@ -57,6 +57,7 @@
             android:id="@+id/input_search"
             android:layout_marginLeft="20dp"
             android:layout_marginRight="20dp"
+            android:layout_marginTop="8dp"
             android:layout_alignParentTop="true"
             android:layout_alignParentLeft="true"
             android:hint="@string/buscar_medidor"
@@ -66,7 +67,10 @@
             android:id="@+id/listItems"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginTop="40dp"
+            android:layout_below="@id/input_search"
+            android:layout_marginTop="8dp"
+            android:paddingBottom="24dp"
+            android:clipToPadding="false"
             />
     </RelativeLayout>
 </FrameLayout>

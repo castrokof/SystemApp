@@ -193,8 +193,17 @@ public class MainActivity extends AppCompatActivity {
 
         if ((getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_content_main) instanceof fragment_sync)) {
             return;
-        }else
+        }
+
+        // Verificar si estamos en un destino de nivel superior
+        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
+        if (mAppBarConfiguration.getTopLevelDestinations().contains(navController.getCurrentDestination().getId())) {
+            // Estamos en una pantalla principal - navegar a fragment_ordenes en lugar de salir
+            navController.navigate(R.id.nav_ordenes);
+        } else {
+            // No estamos en una pantalla principal, comportamiento normal
             super.onBackPressed();
+        }
 
     }
 
