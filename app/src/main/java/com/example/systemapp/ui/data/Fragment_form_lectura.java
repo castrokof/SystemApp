@@ -1731,23 +1731,35 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                         }
 
                         if (!checkConnection() || outputStream == null) {
-                            getActivity().runOnUiThread(() ->
-                                    Toast.makeText(getContext(), "No se pudo conectar a la impresora", Toast.LENGTH_LONG).show()
-                            );
+                            if (getActivity() != null) {
+                                getActivity().runOnUiThread(() ->
+                                        Toast.makeText(getContext(), "No se pudo conectar a la impresora", Toast.LENGTH_LONG).show()
+                                );
+                            } else {
+                                Log.e(TAG, "getActivity() es null al intentar mostrar Toast de impresión");
+                            }
                             return; // Abortamos impresión
                         }
                     } catch (IOException e) {
-                        getActivity().runOnUiThread(() ->
-                                Toast.makeText(getContext(), "Error al conectar a la impresora: " + e.getMessage(), Toast.LENGTH_LONG).show()
-                        );
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() ->
+                                    Toast.makeText(getContext(), "Error al conectar a la impresora: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                            );
+                        } else {
+                            Log.e(TAG, "getActivity() es null al mostrar error de conexión");
+                        }
                         return;
                     }
                 }
 
                 if (!printExist) {
-                    getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "Error: No hay conexión con la impresora", Toast.LENGTH_LONG).show()
-                    );
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() ->
+                                Toast.makeText(getContext(), "Error: No hay conexión con la impresora", Toast.LENGTH_LONG).show()
+                        );
+                    } else {
+                        Log.e(TAG, "getActivity() es null - no hay printExist");
+                    }
                     return;
                 }
 
@@ -1782,17 +1794,22 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 }
 
                 // ✅ Notificar éxito
-                getActivity().runOnUiThread(() ->
-                        Toast.makeText(getContext(), "✅ Impresión completada", Toast.LENGTH_SHORT).show()
-                );
-
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "✅ Impresión completada", Toast.LENGTH_SHORT).show()
+                    );
+                }
                 Log.d("Fragment_form_lectura", "✅ Impresión exitosa");
 
             } catch (IOException e) {
                 Log.e("Fragment_form_lectura", "❌ Error al imprimir", e);
-                getActivity().runOnUiThread(() ->
-                        Toast.makeText(getContext(), "Error al imprimir: " + e.getMessage(), Toast.LENGTH_LONG).show()
-                );
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "Error al imprimir: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                    );
+                } else {
+                    Log.e(TAG, "getActivity() es null al mostrar error de impresión");
+                }
 
                 closeBT();
                 printExist = false;
@@ -2615,9 +2632,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 // 🔹 Verificar si hay conexión
                 if (bluetoothSocket == null || !bluetoothSocket.isConnected() || outputStream == null) {
                     Log.d("Fragment_form_lectura", "Socket o OutputStream nulo o cerrado, reconectando...");
-                    getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "Reconectando impresora...", Toast.LENGTH_SHORT).show()
-                    );
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() ->
+                                Toast.makeText(getContext(), "Reconectando impresora...", Toast.LENGTH_SHORT).show()
+                        );
+                    }
 
                     // Intentar reconectar
                     FindBluetoothDevice();
@@ -2630,9 +2649,13 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                     }
 
                     if (bluetoothSocket == null || !bluetoothSocket.isConnected() || outputStream == null) {
-                        getActivity().runOnUiThread(() ->
-                                Toast.makeText(getContext(), "No se pudo conectar a la impresora", Toast.LENGTH_LONG).show()
-                        );
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() ->
+                                    Toast.makeText(getContext(), "No se pudo conectar a la impresora", Toast.LENGTH_LONG).show()
+                            );
+                        } else {
+                            Log.e(TAG, "getActivity() es null - safePrint no pudo conectar");
+                        }
                         return;
                     }
                 }
@@ -2664,17 +2687,22 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                     outputStream.flush();
                 }
 
-                getActivity().runOnUiThread(() ->
-                        Toast.makeText(getContext(), "✅ Impresión completada", Toast.LENGTH_SHORT).show()
-                );
-
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "✅ Impresión completada", Toast.LENGTH_SHORT).show()
+                    );
+                }
                 Log.d("Fragment_form_lectura", "✅ Impresión exitosa");
 
             } catch (IOException e) {
                 Log.e("Fragment_form_lectura", "Error al imprimir", e);
-                getActivity().runOnUiThread(() ->
-                        Toast.makeText(getContext(), "Error al imprimir: " + e.getMessage(), Toast.LENGTH_LONG).show()
-                );
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "Error al imprimir: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                    );
+                } else {
+                    Log.e(TAG, "getActivity() es null - error en safePrint");
+                }
                 printExist = false;
                 try { closeBT(); } catch (Exception ex) { ex.printStackTrace(); }
 
