@@ -1689,27 +1689,185 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
     // ✅ CRÍTICO: Ejecutar impresión en hilo separado
     private void preparetoprint(DBOrdenLecturas orden) {
+        // Usar la misma lógica exitosa de testPrintWithChannelSearch
+        printWithChannelSearch(orden);
+    }
 
+    // Verificar permisos de Bluetooth
+    private boolean hasBluetoothConnectPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
+        }
+        return true; // Android 11 o menor no requiere BLUETOOTH_CONNECT
+    }
 
-        // 🔹 Verifica que Bluetooth siga activo
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            inicializarBluetooth();
+    // Nueva implementación basada en testPrintWithChannelSearch que SÍ funciona
+    private void printWithChannelSearch(DBOrdenLecturas orden) {
+        String printerName = mPrefs.getString("PREF_PRINTER_NAME", "");
+        String printerMac = mPrefs.getString("PREF_PRINTER_ADDRESS", "");
+
+        if (printerName.isEmpty() || printerMac.isEmpty()) {
+            Toast.makeText(getContext(), "❌ Primero configura una impresora", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        if (bluetoothDevice == null) {
-            FindBluetoothDevice();
+        if (!hasBluetoothConnectPermission()) {
+            Toast.makeText(getContext(), "❌ Se necesitan permisos de Bluetooth", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-            // Esperar un momento para que termine la búsqueda
-            new Handler().postDelayed(() -> {
-                if (bluetoothDevice != null) {
-                    safePrint(orden);
-                } else {
-                    Toast.makeText(getContext(), "No se encontró la impresora", Toast.LENGTH_LONG).show();
+        new Thread(() -> {
+            BluetoothSocket tempSocket = null;
+            java.io.OutputStream tempOutputStream = null;
+            boolean connected = false;
+
+            try {
+                // 🔹 PASO 1: Cancelar discovery
+                if (bluetoothAdapter != null && bluetoothAdapter.isDiscovering()) {
+                    bluetoothAdapter.cancelDiscovery();
+                    Log.d(TAG, "Discovery cancelado");
                 }
-            }, 500);
-        } else {
-            safePrint(orden);
-        }
+                Thread.sleep(500);
+
+                BluetoothDevice device = bluetoothAdapter.getRemoteDevice(printerMac);
+                Log.d(TAG, "📱 Conectando a: " + printerName + " (" + printerMac + ")");
+
+                // 🔹 PASO 2: Verificar si ya hay un canal guardado
+                int savedChannel = mPrefs.getInt("PREF_PRINTER_CHANNEL", 0);
+
+                if (savedChannel > 0) {
+                    Log.d(TAG, "🎯 Intentando con canal guardado: " + savedChannel);
+                    try {
+                        java.lang.reflect.Method m = device.getClass().getMethod(
+                                "createRfcommSocket",
+                                new Class[]{int.class}
+                        );
+                        tempSocket = (BluetoothSocket) m.invoke(device, savedChannel);
+                        tempSocket.connect();
+                        connected = true;
+                        Log.d(TAG, "✅ Conectado con canal guardado: " + savedChannel);
+                    } catch (Exception e) {
+                        Log.w(TAG, "⚠️ Canal guardado falló, buscando nuevo canal...");
+                        try {
+                            if (tempSocket != null) tempSocket.close();
+                        } catch (Exception ex) {}
+                    }
+                }
+
+                // 🔹 PASO 3: Si no conectó, buscar canal correcto
+                if (!connected) {
+                    for (int channel = 1; channel <= 30 && !connected; channel++) {
+                        try {
+                            Log.d(TAG, "Probando canal " + channel + "...");
+
+                            java.lang.reflect.Method m = device.getClass().getMethod(
+                                    "createRfcommSocket",
+                                    new Class[]{int.class}
+                            );
+
+                            tempSocket = (BluetoothSocket) m.invoke(device, channel);
+                            tempSocket.connect();
+
+                            // ✅ Conexión exitosa
+                            connected = true;
+                            Log.d(TAG, "✅✅✅ ÉXITO EN CANAL " + channel + " ✅✅✅");
+
+                            // 🔥 GUARDAR EL CANAL
+                            mPrefs.edit().putInt("PREF_PRINTER_CHANNEL", channel).apply();
+                            break;
+
+                        } catch (Exception e) {
+                            Log.w(TAG, "Canal " + channel + " falló");
+                            try {
+                                if (tempSocket != null) {
+                                    tempSocket.close();
+                                    tempSocket = null;
+                                }
+                            } catch (Exception ex) {}
+                        }
+                    }
+                }
+
+                // 🔹 PASO 4: Verificar si se conectó
+                if (!connected || tempSocket == null) {
+                    throw new java.io.IOException("❌ No se pudo conectar después de probar 30 canales");
+                }
+
+                // 🔹 PASO 5: Obtener OutputStream
+                tempOutputStream = tempSocket.getOutputStream();
+                final java.io.OutputStream finalOutputStream = tempOutputStream;
+
+                // 🔹 PASO 6: Preparar datos de impresión
+                String dataprint = prepareDataToPrint(orden);
+
+                // 🔹 PASO 7: Imprimir
+                finalOutputStream.write(new byte[]{0x1B, 0x40}); // ESC @ (Inicializar)
+
+                // Logo
+                try {
+                    Bitmap bmp = BitmapFactory.decodeResource(getResources(), R.drawable.logoprint);
+                    if (bmp != null) {
+                        byte[] command = printPhoto(bmp);
+                        if (command != null) {
+                            finalOutputStream.write(ESC_ALIGN_CENTER);
+                            finalOutputStream.write(command);
+                        }
+                        bmp.recycle();
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Logo omitido: " + e.getMessage());
+                }
+
+                // Contenido
+                finalOutputStream.write(ESC_ALIGN_LEFT);
+                finalOutputStream.write(FEED_LINE);
+                finalOutputStream.write(dataprint.getBytes("GBK"));
+                finalOutputStream.write(FEED_LINE);
+                finalOutputStream.write(FEED_LINE);
+                finalOutputStream.flush();
+
+                Log.d(TAG, "📄 Datos enviados a impresora");
+
+                // 🔹 PASO 8: Esperar impresión
+                Thread.sleep(2000);
+
+                // 🔹 PASO 9: Cerrar conexión
+                finalOutputStream.close();
+                tempSocket.close();
+
+                // 🔹 PASO 10: Notificar éxito
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "✅ Impresión completada", Toast.LENGTH_SHORT).show()
+                    );
+                }
+                Log.d(TAG, "✅ Impresión completada");
+
+            } catch (SecurityException e) {
+                Log.e(TAG, "❌ Error de permisos", e);
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "❌ Error de permisos", Toast.LENGTH_LONG).show()
+                    );
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "❌ Error en impresión", e);
+                if (getActivity() != null) {
+                    final String errorMsg = e.getMessage();
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "Error al imprimir: " + errorMsg, Toast.LENGTH_LONG).show()
+                    );
+                }
+            } finally {
+                // 🔹 PASO 11: Limpiar recursos
+                try {
+                    if (tempOutputStream != null) tempOutputStream.close();
+                    if (tempSocket != null) tempSocket.close();
+                } catch (Exception e) {
+                    Log.w(TAG, "Error cerrando recursos");
+                }
+            }
+        }).start();
     }
 
 
