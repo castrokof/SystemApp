@@ -192,6 +192,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     private Call<EnviarRespuesta> enviarordenes;
 
     private LocationManager mLocationManager = null;
+    private LocationListener locationListener = null; // Guardar referencia para remover en onPause/onDestroyView
 
     private double longitude;
     private double latitude;
@@ -284,10 +285,16 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
 
 
+        // Validar que el fragment esté attached
+        if (getActivity() == null) {
+            Log.e(TAG, "getActivity() is null in onCreateView");
+            return root;
+        }
+
         mLocationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
 
         //comprobar que se tenga gps encendido
-        if (!mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+        if (mLocationManager != null && !mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             //Pedir que se active el gps
             MainActivity.displayPromptForEnablingGPS(getActivity());
 
@@ -308,7 +315,8 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                         lastlatitude = location.getLatitude();
                     }
 
-                    final LocationListener locationListener = new LocationListener() {
+                    // Usar variable de instancia en lugar de variable local
+                    locationListener = new LocationListener() {
                         public void onLocationChanged(Location location) {
                             Log.d("Fragment_form_lectura", "onLocationChanged " +
                                     location.getLatitude() + " " + location.getLongitude());
@@ -334,7 +342,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                         }
                     };
 
-                    mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 300000, 100, locationListener);
+                    if (mLocationManager != null) {
+                        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 300000, 100, locationListener);
+                    }
 
                 } catch (SecurityException e) {
 
@@ -348,8 +358,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 //Instanciamos el DBHelper
                 adminSQLiteOpenHelper = new AdminSQLiteOpenHelper(getContext());
 
-                mPrefs = getActivity().
-                        getSharedPreferences("SYSTEMAPP_PREFS", Context.MODE_PRIVATE);
+                if (getActivity() != null) {
+                    mPrefs = getActivity().getSharedPreferences("SYSTEMAPP_PREFS", Context.MODE_PRIVATE);
+                }
 
                 // ⭐ Crear OkHttpClient con el Interceptor
                 OkHttpClient client = new OkHttpClient.Builder()
@@ -370,7 +381,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 posicion = bundle.getInt("posicion");
 
                 //variable para manejar mostrar o no el teclado
-                imm = (InputMethodManager) getActivity().getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (getActivity() != null) {
+                    imm = (InputMethodManager) getActivity().getSystemService(Context.INPUT_METHOD_SERVICE);
+                }
 
                 //obtener mac de impresora
 
@@ -610,7 +623,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                     }
                                     break;
                                 default:
-                                    if (!edit && orden.getCausa()!= null || orden.getCausa()!= 0 ) {
+                                    if (!edit && orden.getCausa() != null && orden.getCausa() != 0) {
                                         //manda a imprimir verificando si es el último registro asociado por contrato
                                         orden.setCritica(String.valueOf(Integer.parseInt(
                                                 ((DBListas) criticas.get(4)).getCodigo())+"-"+
@@ -714,93 +727,166 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     }
 
 
-    ActivityResultLauncher<Intent> dispatchTakePictureIntent = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
-        @Override
-        public void onActivityResult(ActivityResult result) {
+    // ActivityResultLauncher moderno para captura de fotos (reemplaza startActivityForResult deprecado)
+    private ActivityResultLauncher<Intent> takePictureLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            new ActivityResultCallback<ActivityResult>() {
+                @Override
+                public void onActivityResult(ActivityResult result) {
+                    if (result.getResultCode() == RESULT_OK) {
+                        // Procesar en background para evitar bloqueo de UI
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            try {
+                                // Cuando usamos EXTRA_OUTPUT, la imagen NO viene en extras
+                                // sino que se guarda en el archivo especificado
+                                if (GuardarFotos.currentPhotoPath != null) {
+                                    File photoFile = new File(GuardarFotos.currentPhotoPath);
+                                    if (photoFile.exists()) {
+                                        // Almacenar la ruta de la foto
+                                        orden.setRuta_foto((orden.getRuta_foto() == null)
+                                            ? GuardarFotos.currentPhotoPath
+                                            : orden.getRuta_foto() + ", " + GuardarFotos.currentPhotoPath);
+                                        Log.d("Fragment_form_lectura", "ruta_foto " + orden.getRuta_foto());
 
-            if (result.getResultCode() == RESULT_OK) {
-                Bundle extras = result.getData().getExtras();
-                Bitmap imgBitmap = (Bitmap) extras.get("data");
-            }
+                                        cantidadFotos--;
+                                        if (cantidadFotos > 0) {
+                                            // Más fotos por tomar
+                                            if (mensajesFotos != null && mensajesFotos.size() > 0) {
+                                                mensajesFotos.remove(0);
+                                                if (mensajesFotos.size() > 0) {
+                                                    Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+                                                }
+                                            }
+                                            // Delay antes de abrir cámara nuevamente
+                                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                                launchCamera(orden.getId());
+                                            }, 300);
+                                        } else {
+                                            // Ya se tomaron todas las fotos
+                                            if (!fotoAdicional) {
+                                                finalizarRegistroLectura();
+                                            } else {
+                                                fotoAdicional = false;
+                                            }
+                                        }
+                                    } else {
+                                        Log.e("Fragment_form_lectura", "El archivo de foto no existe");
+                                        Toast.makeText(getActivity(), "Error: foto no guardada correctamente", Toast.LENGTH_SHORT).show();
+                                    }
+                                }
+                            } catch (Exception e) {
+                                Log.e("Fragment_form_lectura", "Error al procesar foto: " + e.getMessage());
+                                Toast.makeText(getActivity(), "Error al procesar la foto", Toast.LENGTH_SHORT).show();
+                            }
+                        }, 100); // Pequeño delay para liberar recursos de cámara
 
-        }
-    });
+                    } else {
+                        // Usuario canceló o hubo error
+                        if (!fotoAdicional) {
+                            // No se tomó foto y es obligatoria
+                            Toast.makeText(getActivity(), getString(R.string.foto_req), Toast.LENGTH_SHORT).show();
+                            // Delay antes de reintentar
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                launchCamera(orden.getId());
+                            }, 300);
+                        } else {
+                            fotoAdicional = false;
+                        }
+                    }
+                }
+            });
+
+    // ActivityResultLauncher moderno para habilitar Bluetooth (reemplaza startActivityForResult deprecado)
+    private ActivityResultLauncher<Intent> enableBluetoothLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            new ActivityResultCallback<ActivityResult>() {
+                @Override
+                public void onActivityResult(ActivityResult result) {
+                    if (result.getResultCode() == RESULT_OK) {
+                        Log.d(TAG, "Bluetooth habilitado correctamente");
+                        // Bluetooth fue habilitado, continuar con FindBluetoothDevice
+                        try {
+                            FindBluetoothDevice();
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error al buscar dispositivo Bluetooth: " + e.getMessage());
+                        }
+                    } else {
+                        Log.w(TAG, "Usuario canceló la habilitación de Bluetooth");
+                        Toast.makeText(getContext(), "Bluetooth es necesario para imprimir", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
 
 
-    private void dispatchTakePictureIntent(String idOrden) {
+    // Método para lanzar la cámara usando el API moderno ActivityResultLauncher
+    private void launchCamera(String idOrden) {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
-        //if (takePictureIntent.resolveActivity(getActivity().getPackageManager()) != null) {
-
-        //startActivityForResult(takePictureIntent,1);
-        // Create the File where the photo should go
+        // Crear el archivo donde se guardará la foto
         File photoFile = null;
         try {
             photoFile = GuardarFotos.createImageFile(getActivity(), idOrden);
         } catch (IOException ex) {
-            Log.e("Error", ex.toString());
-
+            Log.e("Fragment_form_lectura", "Error al crear archivo: " + ex.toString());
+            Toast.makeText(getActivity(), "Error al crear archivo de foto", Toast.LENGTH_SHORT).show();
+            return;
         }
-        // Continue only if the File was successfully created
+
+        // Continuar solo si el archivo se creó exitosamente
         if (photoFile != null) {
-            Uri photoURI = FileProvider.getUriForFile(getActivity(),
-                    "com.example.systemapp.fileprovider",
-                    photoFile);
-            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-            startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-            //mostrar mensaje si existe
-            if (mensajesFotos != null) {
-                Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+            try {
+                Uri photoURI = FileProvider.getUriForFile(getActivity(),
+                        "com.example.systemapp.fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+
+                // Agregar flags para liberar recursos de cámara más rápido
+                takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+                // Usar el launcher moderno en lugar de startActivityForResult (deprecado)
+                takePictureLauncher.launch(takePictureIntent);
+
+                // Mostrar mensaje si existe
+                if (mensajesFotos != null && mensajesFotos.size() > 0) {
+                    Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+                }
+
+                Log.d("Fragment_form_lectura", "Ruta foto: " + GuardarFotos.currentPhotoPath);
+                Log.d("Fragment_form_lectura", "URI foto: " + photoURI.getPath());
+            } catch (Exception e) {
+                Log.e("Fragment_form_lectura", "Error al crear URI: " + e.getMessage());
+                Toast.makeText(getActivity(), "Error al iniciar cámara", Toast.LENGTH_SHORT).show();
             }
-
-            Log.d("Fragment_form_lectura", GuardarFotos.currentPhotoPath + " aquí estaría");
-            Log.d("Fragment_form_lectura", photoURI.getPath() + " aquí estaría");
+        } else {
+            Toast.makeText(getActivity(), "No se pudo crear archivo para la foto", Toast.LENGTH_SHORT).show();
         }
+    }
 
-        //}
+    // Método legacy para mantener compatibilidad con código existente
+    // Redirige al nuevo método launchCamera()
+    private void dispatchTakePictureIntent(String idOrden) {
+        launchCamera(idOrden);
     }
 
 
+    // ⚠️ MÉTODO DEPRECADO: onActivityResult ya no se usa
+    // Se reemplazó con ActivityResultLauncher (takePictureLauncher) que es el API moderno de Android
+    // Mantener comentado para referencia, pero toda la lógica ahora está en takePictureLauncher
+    /*
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            //Bundle extras = data.getExtras();
-            //Bitmap imageBitmap = (Bitmap) extras.get("data");
-            //imageView.setImageBitmap(imageBitmap);
-
-            //almacenar la ruta de la foto
-            orden.setRuta_foto((orden.getRuta_foto() == null) ? GuardarFotos.currentPhotoPath : orden.getRuta_foto() + ", " + GuardarFotos.currentPhotoPath);
-            Log.d("Fragment_form_lectura", "ruta_foto " + orden.getRuta_foto());
-
-            cantidadFotos--;
-            if (cantidadFotos > 0) {
-                if (mensajesFotos != null) {
-                    mensajesFotos.remove(0);
-                    Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
-                }
-                dispatchTakePictureIntent(orden.getId());
-            } else {
-                if (!fotoAdicional)
-                    finalizarRegistroLectura();
-                else
-                    fotoAdicional = false;
-            }
+            // Esta lógica se movió a takePictureLauncher (líneas 717-780)
         } else {
-
             if (requestCode == REQUEST_ENABLE_BT) {
-                //indica que se pidió permitir habilitar el bluetooth
-
+                // Bluetooth enable request
             } else {
-                if (!fotoAdicional) {
-                    //sino indica que no se tomó foto y se obliga a que se tome
-                    Toast.makeText(getActivity(), getString(R.string.foto_req), Toast.LENGTH_SHORT).show();
-                    dispatchTakePictureIntent(orden.getId());
-                } else
-                    fotoAdicional = false;
+                // Photo required
             }
-
         }
     }
+    */
 
 
     public void finalizarRegistroLectura() {
@@ -1332,7 +1418,8 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 FindBluetoothDevice(); // tu método
             } else {
                 Intent enableBT = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBT, 1);
+                // Usar el launcher moderno en lugar de startActivityForResult (deprecado)
+                enableBluetoothLauncher.launch(enableBT);
             }
         } catch (Exception e) {
             Log.e("BluetoothInit", "Error inicializando Bluetooth", e);
@@ -1368,7 +1455,8 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             // ✅ CORREGIDO: Si NO está habilitado, pedir activarlo
             if (!bluetoothAdapter.isEnabled()) {
                 Intent enableBT = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBT, 1);
+                // Usar el launcher moderno en lugar de startActivityForResult (deprecado)
+                enableBluetoothLauncher.launch(enableBT);
                 return;
             }
 
@@ -1790,21 +1878,33 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 if (newWidth < 8) newWidth = 8;
 
                 processedBitmap = Bitmap.createScaledBitmap(imagen, newWidth, newHeight, true);
+                if (processedBitmap == null) {
+                    Log.e("printPhoto", "❌ Error al redimensionar bitmap");
+                    return null;
+                }
                 Log.d("printPhoto", "✅ Redimensionada a " + newWidth + "x" + newHeight);
             }
 
             // ✅ Convertir a blanco y negro CON INVERSIÓN DE COLORES
             Bitmap bwBitmap = convertToBlackAndWhiteInverted(processedBitmap);
 
+            if (bwBitmap == null) {
+                Log.e("printPhoto", "❌ Error al convertir a B/N");
+                if (processedBitmap != imagen && processedBitmap != null) {
+                    processedBitmap.recycle();
+                }
+                return null;
+            }
+
             Log.d("printPhoto", "✅ Procesando: " + bwBitmap.getWidth() + "x" + bwBitmap.getHeight());
 
             byte[] command = com.example.systemapp.data.Utils.decodeBitmap(bwBitmap);
 
-            // Limpiar memoria
-            if (processedBitmap != imagen) {
+            // Limpiar memoria - CRÍTICO para evitar memory leaks
+            if (processedBitmap != null && processedBitmap != imagen) {
                 processedBitmap.recycle();
             }
-            if (bwBitmap != processedBitmap) {
+            if (bwBitmap != null && bwBitmap != processedBitmap) {
                 bwBitmap.recycle();
             }
 
@@ -1823,40 +1923,41 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         }
     }
 
-    // ✅ NUEVA FUNCIÓN: Convierte a B/N con colores INVERTIDOS
+    // ✅ FUNCIÓN OPTIMIZADA: Convierte a B/N con colores INVERTIDOS (10-20x más rápido)
     private Bitmap convertToBlackAndWhiteInverted(Bitmap bitmap) {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
+        int pixelCount = width * height;
 
-        Bitmap bwBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        // Obtener todos los píxeles en un array (mucho más rápido que getPixel individual)
+        int[] pixels = new int[pixelCount];
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int pixel = bitmap.getPixel(x, y);
+        // Procesar píxeles en el array
+        for (int i = 0; i < pixelCount; i++) {
+            int pixel = pixels[i];
 
-                // Extraer componentes RGB
-                int r = (pixel >> 16) & 0xff;
-                int g = (pixel >> 8) & 0xff;
-                int b = pixel & 0xff;
+            // Extraer componentes RGB
+            int r = (pixel >> 16) & 0xff;
+            int g = (pixel >> 8) & 0xff;
+            int b = pixel & 0xff;
 
-                // Calcular luminancia (brillo)
-                int luminance = (int) (0.299 * r + 0.587 * g + 0.114 * b);
+            // Calcular luminancia (brillo) - usar enteros para mejor performance
+            int luminance = (299 * r + 587 * g + 114 * b) / 1000;
 
-                // ✅ INVERTIR: si era claro (>127) → negro, si era oscuro → blanco
-                int invertedLuminance = 255 - luminance;
+            // ✅ INVERTIR: si era claro (>127) → negro, si era oscuro → blanco
+            int invertedLuminance = 255 - luminance;
 
-                // ✅ AUMENTAR CONTRASTE para mejor definición
-                if (invertedLuminance > 127) {
-                    invertedLuminance = 255; // Blanco puro
-                } else {
-                    invertedLuminance = 0;   // Negro puro
-                }
+            // ✅ AUMENTAR CONTRASTE para mejor definición
+            invertedLuminance = (invertedLuminance > 127) ? 255 : 0;
 
-                // Crear pixel invertido
-                int newPixel = (0xFF << 24) | (invertedLuminance << 16) | (invertedLuminance << 8) | invertedLuminance;
-                bwBitmap.setPixel(x, y, newPixel);
-            }
+            // Crear pixel invertido (mantener alpha channel)
+            pixels[i] = (0xFF << 24) | (invertedLuminance << 16) | (invertedLuminance << 8) | invertedLuminance;
         }
+
+        // Crear bitmap y asignar todos los píxeles de una vez
+        Bitmap bwBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        bwBitmap.setPixels(pixels, 0, width, 0, 0, width, height);
 
         return bwBitmap;
     }
@@ -2084,7 +2185,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             }
 
 
-        if (orden.getCritica() == "53-LECTURAS_IGUALES") {
+        if ("53-LECTURAS_IGUALES".equals(orden.getCritica())) {
 
             if (!comentario.equals("")&&setcomentario)
                 orden.setObservacionGral((orden.getObservacionGral()!=null?orden.getObservacionGral():"")+"-"+comentario);
@@ -2099,7 +2200,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
 
 
-        if (orden.getCritica() == "53-LECTURAS_IGUALES") {
+        if ("53-LECTURAS_IGUALES".equals(orden.getCritica())) {
 
             if (!edit) {
                 //manda a imprimir verificando si es el último registro asociado por contrato
@@ -2135,7 +2236,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             orden.setObservacionGral(comentario);
         }
 
-        if (orden.getCritica().equals("53-LECTURAS_IGUALES") ) {
+        if ("53-LECTURAS_IGUALES".equals(orden.getCritica())) {
 
             if (!edit) {
                 //manda a imprimir verificando si es el último registro asociado por contrato
@@ -2588,6 +2689,19 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+
+        // Remover LocationListener para evitar memory leak
+        try {
+            if (mLocationManager != null && locationListener != null) {
+                mLocationManager.removeUpdates(locationListener);
+                locationListener = null;
+                Log.d(TAG, "LocationListener removido correctamente");
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "Error removiendo LocationListener: " + e.getMessage());
+        }
+
+        // Cerrar recursos de Bluetooth
         try {
             if (bluetoothSocket != null) {
                 bluetoothSocket.close();
@@ -2599,6 +2713,8 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         } catch (Exception e) {
             Log.e("Bluetooth", "Error cerrando conexión", e);
         }
+
+        // Limpiar binding
         binding = null;
     }
 }

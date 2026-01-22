@@ -51,6 +51,8 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private FragmentManager mFragmentManager;
     public static SharedPreferences mPrefs;
+    private long backPressedTime;
+    private Toast backToast;
 
 
     @Override

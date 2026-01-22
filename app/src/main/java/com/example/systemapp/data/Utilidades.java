@@ -274,25 +274,51 @@ public class Utilidades {
     {
         File imagefile = new File(path);
         FileInputStream fis = null;
+        Bitmap bm = null;
+        Bitmap resizedBitmap = null;
         String encImage = "";
         try{
             fis = new FileInputStream(imagefile);
 
-            Bitmap bm = BitmapFactory.decodeStream(fis);
+            // Optimización: usar BitmapFactory.Options para muestreo eficiente
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = 2; // Reducir tamaño en memoria 2x
+            options.inPreferredConfig = Bitmap.Config.RGB_565; // Usar menos memoria
+            bm = BitmapFactory.decodeStream(fis, null, options);
 
-            //redimensionar imagen a 640x640 para subir al servidor
-            Bitmap resizedBitmap = Bitmap.createScaledBitmap(bm, 640, 480, true);
+            if (bm == null) {
+                return encImage;
+            }
+
+            //redimensionar imagen a 640x480 para subir al servidor
+            resizedBitmap = Bitmap.createScaledBitmap(bm, 640, 480, true);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 50, outputStream);
             byte[] b = outputStream.toByteArray();
             encImage = Base64.encodeToString(b, Base64.DEFAULT);
-            resizedBitmap.recycle();
+
+            // Cerrar stream
+            outputStream.close();
 
         }catch(Exception e){
             e.printStackTrace();
-            return encImage;
+        } finally {
+            // Liberar memoria - CRÍTICO para evitar memory leaks
+            if (resizedBitmap != null) {
+                resizedBitmap.recycle();
+            }
+            if (bm != null && bm != resizedBitmap) {
+                bm.recycle();
+            }
+            // Cerrar FileInputStream
+            if (fis != null) {
+                try {
+                    fis.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
         }
-
 
         return encImage;
 
