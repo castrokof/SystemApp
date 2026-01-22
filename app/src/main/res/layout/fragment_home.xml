@@ -69,7 +69,7 @@
             android:layout_height="match_parent"
             android:layout_below="@id/input_search"
             android:layout_marginTop="8dp"
-            android:paddingBottom="80dp"
+            android:paddingBottom="24dp"
             android:clipToPadding="false"
             />
     </RelativeLayout>

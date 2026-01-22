@@ -200,18 +200,8 @@ public class MainActivity extends AppCompatActivity {
         // Verificar si estamos en un destino de nivel superior
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
         if (mAppBarConfiguration.getTopLevelDestinations().contains(navController.getCurrentDestination().getId())) {
-            // Estamos en una pantalla principal - implementar doble presión para salir
-            if (backPressedTime + 2000 > System.currentTimeMillis()) {
-                // Si presionó back hace menos de 2 segundos, cerrar la aplicación
-                if (backToast != null) backToast.cancel();
-                finishAffinity();
-                return;
-            } else {
-                // Primera presión, mostrar mensaje
-                backToast = Toast.makeText(this, "Presiona nuevamente para salir", Toast.LENGTH_SHORT);
-                backToast.show();
-            }
-            backPressedTime = System.currentTimeMillis();
+            // Estamos en una pantalla principal - navegar a fragment_ordenes en lugar de salir
+            navController.navigate(R.id.nav_ordenes);
         } else {
             // No estamos en una pantalla principal, comportamiento normal
             super.onBackPressed();

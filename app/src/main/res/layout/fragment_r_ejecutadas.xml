@@ -95,7 +95,7 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_marginTop="8dp"
-            android:paddingBottom="80dp"
+            android:paddingBottom="24dp"
             android:clipToPadding="false"
             android:choiceMode="singleChoice"
             app:layout_constraintTop_toBottomOf="@+id/input_search_layout1"
