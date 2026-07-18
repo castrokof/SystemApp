@@ -108,7 +108,7 @@ public class Adaptador extends ArrayAdapter<DBOrdenLecturas>  implements Filtera
 
             for (int i = 0; i < count; i++) {
                 filterableString = list.get(i);
-                if (filterableString.getRef_Medidor().toLowerCase().trim().contains(filterString)) {
+                if (filterableString.getRef_Medidor().toLowerCase().trim().contains(filterString) || filterableString.getNombre().toLowerCase().trim().contains(filterString)) {
                     nlist.add(filterableString);
                 }
             }

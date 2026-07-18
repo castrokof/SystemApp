@@ -1,6 +1,8 @@
 package com.example.systemapp.data;
 
 import com.example.systemapp.MainActivity;
+import com.example.systemapp.BuildConfig;
+import com.example.systemapp.MainActivity;
 
 public class Constants {
 
@@ -14,8 +16,8 @@ public class Constants {
     static public final String VALIDACION4 = "CA<35CP";
     static public final String VALIDACION5 = "CA<50CP";
 
-    static public final String IP_DEF = "manteliviano.com";
-    static public final String BASE_API = "/AquaProgrammerData/api/";
+    static public final String IP_DEF = BuildConfig.IP_DEF;
+    static public final String BASE_API = BuildConfig.BASE_API;
 
     static private MainActivity context;
     static private String ip;

@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+app/acuasur/release/
+app/altosmangos/release/
+app/*/release/
+.idea/deploymentTargetSelector.xml

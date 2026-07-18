@@ -229,6 +229,11 @@ public class AdminSQLiteOpenHelper extends SQLiteOpenHelper {
         // 1. Armamos un String con el query a ejecutar
         String query = "SELECT * FROM " + tableName + condition;
 
+        // Agregar ORDER BY solo para la tabla "lecturas"
+        if ("lecturas".equals(tableName)) {
+            query += " ORDER BY id_Ruta, CAST(consecutivoRuta AS INTEGER)";
+        }
+
         // 2. Obtenemos una reference de la BD con permisos de escritura y ejecutamos el query
         SQLiteDatabase db = this.getWritableDatabase();
         Cursor cursor = db.rawQuery(query, null);

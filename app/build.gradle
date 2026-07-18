@@ -17,6 +17,57 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+
+    flavorDimensions "cliente"
+
+    productFlavors {
+
+        acuasur {
+            dimension "cliente"
+            applicationIdSuffix ".acuasur"
+            resValue "string", "app_name", "Acuasur"
+            buildConfigField "String", "IP_DEF", '"manteliviano.com"'
+            buildConfigField "String", "BASE_API", '"/acuasur/api/"'
+            buildConfigField "boolean", "INVERT_LOGO", 'false'
+        }
+
+        acuacer {
+            dimension "cliente"
+            applicationIdSuffix ".acuacer"
+            resValue "string", "app_name", "Acuacer"
+            buildConfigField "String", "IP_DEF", '"manteliviano.com"'
+            buildConfigField "String", "BASE_API", '"/appupdate/api/"'
+            buildConfigField "boolean", "INVERT_LOGO", 'false'
+        }
+
+        altosmangos {
+            dimension "cliente"
+            applicationIdSuffix ".altosmangos"
+            resValue "string", "app_name", "Alto Los Mangos"
+            buildConfigField "String", "IP_DEF", '"manteliviano.com"'
+            buildConfigField "String", "BASE_API", '"/AquaProgrammerData/api/"'
+            buildConfigField "boolean", "INVERT_LOGO", 'true'
+        }
+
+        lasirena {
+            dimension "cliente"
+            applicationIdSuffix ".lasirena"
+            resValue "string", "app_name", "La Sirena"
+            buildConfigField "String", "IP_DEF", '"manteliviano.com"'
+            buildConfigField "String", "BASE_API", '"/AquaProgrammerDataLaSirena/api/"'
+            buildConfigField "boolean", "INVERT_LOGO", 'false'
+        }
+
+        asovoragine {
+            dimension "cliente"
+            applicationIdSuffix ".asovoragine"
+            resValue "string", "app_name", "Asovoragine"
+            buildConfigField "String", "IP_DEF", '"asovoragine.aquaprogrammer.com"'
+            buildConfigField "String", "BASE_API", '"/api/"'
+            buildConfigField "boolean", "INVERT_LOGO", 'false'
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -29,6 +80,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 }
 
