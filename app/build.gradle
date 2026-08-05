@@ -29,6 +29,8 @@ android {
             buildConfigField "String", "IP_DEF", '"manteliviano.com"'
             buildConfigField "String", "BASE_API", '"/acuasur/api/"'
             buildConfigField "boolean", "INVERT_LOGO", 'false'
+            buildConfigField "boolean", "FACTURACION_SITIO_SOPORTADA", 'false'
+            buildConfigField "boolean", "FOTOS_MULTIPLES_SOPORTADA", 'false'
         }
 
         acuacer {
@@ -38,6 +40,8 @@ android {
             buildConfigField "String", "IP_DEF", '"manteliviano.com"'
             buildConfigField "String", "BASE_API", '"/appupdate/api/"'
             buildConfigField "boolean", "INVERT_LOGO", 'false'
+            buildConfigField "boolean", "FACTURACION_SITIO_SOPORTADA", 'false'
+            buildConfigField "boolean", "FOTOS_MULTIPLES_SOPORTADA", 'false'
         }
 
         altosmangos {
@@ -47,6 +51,8 @@ android {
             buildConfigField "String", "IP_DEF", '"manteliviano.com"'
             buildConfigField "String", "BASE_API", '"/AquaProgrammerData/api/"'
             buildConfigField "boolean", "INVERT_LOGO", 'true'
+            buildConfigField "boolean", "FACTURACION_SITIO_SOPORTADA", 'false'
+            buildConfigField "boolean", "FOTOS_MULTIPLES_SOPORTADA", 'false'
         }
 
         lasirena {
@@ -56,6 +62,8 @@ android {
             buildConfigField "String", "IP_DEF", '"manteliviano.com"'
             buildConfigField "String", "BASE_API", '"/AquaProgrammerDataLaSirena/api/"'
             buildConfigField "boolean", "INVERT_LOGO", 'false'
+            buildConfigField "boolean", "FACTURACION_SITIO_SOPORTADA", 'false'
+            buildConfigField "boolean", "FOTOS_MULTIPLES_SOPORTADA", 'false'
         }
 
         asovoragine {
@@ -65,6 +73,19 @@ android {
             buildConfigField "String", "IP_DEF", '"asovoragine.aquaprogrammer.com"'
             buildConfigField "String", "BASE_API", '"/api/"'
             buildConfigField "boolean", "INVERT_LOGO", 'false'
+            buildConfigField "boolean", "FACTURACION_SITIO_SOPORTADA", 'false'
+            buildConfigField "boolean", "FOTOS_MULTIPLES_SOPORTADA", 'false'
+        }
+
+        demo {
+            dimension "cliente"
+            applicationIdSuffix ".demo"
+            resValue "string", "app_name", "Demo"
+            buildConfigField "String", "IP_DEF", '"demo.aquaprogrammer.com"'
+            buildConfigField "String", "BASE_API", '"/api/"'
+            buildConfigField "boolean", "INVERT_LOGO", 'false'
+            buildConfigField "boolean", "FACTURACION_SITIO_SOPORTADA", 'false'
+            buildConfigField "boolean", "FOTOS_MULTIPLES_SOPORTADA", 'true'
         }
     }
 

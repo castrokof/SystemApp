@@ -197,6 +197,122 @@
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
+                    <!-- Botón Descargar Tarifas (Facturación en Sitio) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/card_sync_tarifas"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        app:cardBackgroundColor="#F0F4FF"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="20dp"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_downloading"
+                                android:tint="#007AFF"
+                                android:padding="8dp"
+                                android:background="@drawable/icon_circle_background" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:layout_marginStart="16dp">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Descargar Tarifas"
+                                    android:textColor="#1C1C1E"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    android:fontFamily="sans-serif-medium" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:text="Tarifa vigente, estratos y rango de facturación"
+                                    android:textColor="#8E8E93"
+                                    android:textSize="13sp" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:src="@drawable/ic_chevron_right"
+                                android:tint="#C7C7CC" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Botón Descargar Facturas Resueltas (Facturación en Sitio) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/card_sync_facturas_resueltas"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        app:cardBackgroundColor="#F0F4FF"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="20dp"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/ic_downloading"
+                                android:tint="#007AFF"
+                                android:padding="8dp"
+                                android:background="@drawable/icon_circle_background" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:layout_marginStart="16dp">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Descargar Facturas Resueltas"
+                                    android:textColor="#1C1C1E"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    android:fontFamily="sans-serif-medium" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:text="Facturas resueltas desde el panel web"
+                                    android:textColor="#8E8E93"
+                                    android:textSize="13sp" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:src="@drawable/ic_chevron_right"
+                                android:tint="#C7C7CC" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
                     <!-- Botón Upload -->
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/card_upload"

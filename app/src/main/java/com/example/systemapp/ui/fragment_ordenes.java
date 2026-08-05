@@ -115,6 +115,7 @@ public class fragment_ordenes extends Fragment implements RAsignadasFragment.Cha
         // ⭐ Crear OkHttpClient con el AuthInterceptor
         OkHttpClient client = new OkHttpClient.Builder()
                 .addInterceptor(new AuthInterceptor(getContext()))
+                .addInterceptor(new com.example.systemapp.EmptyListOnErrorObjectInterceptor())
                 .build();
 
         // ⭐ Crear conexión al servicio REST con el cliente

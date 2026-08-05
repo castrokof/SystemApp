@@ -28,6 +28,18 @@ public class SessionPrefs {
 
     public static final String PREF_PRINTER_ADDRESS= "PREF_PRINTER_ADDRESS";
 
+    public static final String PREF_PRINTER_WIDTH_MM = "PREF_PRINTER_WIDTH_MM"; // 58 o 80
+
+    // Facturación en sitio (SPEC_FACTURACION_EN_SITIO.md) — apagado por defecto: no afecta
+    // a lecturistas que aún no la usan.
+    public static final String PREF_FACTURACION_SITIO_ENABLED = "PREF_FACTURACION_SITIO_ENABLED";
+    // Clasificaciones permitidas para facturar en sitio — se sobrescriben al sincronizar con
+    // config_facturacion_sitio del backend (Fase 6). NORMAL/ALTO/BAJO por defecto habilitados
+    // en fábrica; NEGATIVO no es configurable, es regla fija de negocio (nunca se factura en sitio).
+    public static final String PREF_FACTURA_PERMITE_NORMAL = "PREF_FACTURA_PERMITE_NORMAL";
+    public static final String PREF_FACTURA_PERMITE_ALTO = "PREF_FACTURA_PERMITE_ALTO";
+    public static final String PREF_FACTURA_PERMITE_BAJO = "PREF_FACTURA_PERMITE_BAJO";
+
     private final SharedPreferences mPrefs;
     private boolean mIsLoggedIn = false;
 
@@ -133,5 +145,46 @@ public class SessionPrefs {
         editor.putString("PREF_PRINTER_NAME", name);
         editor.apply();
 
+    }
+
+    // Ancho de papel térmico configurado manualmente por dispositivo (58 u 80 mm) — sin auto-detección.
+    public int getPrefPrinterWidthMM() {
+        return mPrefs.getInt(PREF_PRINTER_WIDTH_MM, 58);
+    }
+
+    public void setPrefPrinterWidthMM(int widthMM) {
+        mPrefs.edit().putInt(PREF_PRINTER_WIDTH_MM, widthMM).apply();
+    }
+
+    public boolean isFacturacionSitioEnabled() {
+        return mPrefs.getBoolean(PREF_FACTURACION_SITIO_ENABLED, false);
+    }
+
+    public void setFacturacionSitioEnabled(boolean enabled) {
+        mPrefs.edit().putBoolean(PREF_FACTURACION_SITIO_ENABLED, enabled).apply();
+    }
+
+    public boolean isPermiteFacturarNormal() {
+        return mPrefs.getBoolean(PREF_FACTURA_PERMITE_NORMAL, true);
+    }
+
+    public void setPermiteFacturarNormal(boolean permitido) {
+        mPrefs.edit().putBoolean(PREF_FACTURA_PERMITE_NORMAL, permitido).apply();
+    }
+
+    public boolean isPermiteFacturarAlto() {
+        return mPrefs.getBoolean(PREF_FACTURA_PERMITE_ALTO, true);
+    }
+
+    public boolean isPermiteFacturarBajo() {
+        return mPrefs.getBoolean(PREF_FACTURA_PERMITE_BAJO, true);
+    }
+
+    public void setPermiteFacturarAlto(boolean permitido) {
+        mPrefs.edit().putBoolean(PREF_FACTURA_PERMITE_ALTO, permitido).apply();
+    }
+
+    public void setPermiteFacturarBajo(boolean permitido) {
+        mPrefs.edit().putBoolean(PREF_FACTURA_PERMITE_BAJO, permitido).apply();
     }
 }

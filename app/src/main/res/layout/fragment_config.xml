@@ -128,6 +128,64 @@
                 android:padding="12dp"
                 android:background="@drawable/bg_pill" />
 
+            <!-- Ancho de papel térmico -->
+            <TextView
+                android:id="@+id/label_printer_width"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Ancho de papel"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#1C1C1E" />
+
+            <RadioGroup
+                android:id="@+id/radio_group_printer_width"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
+
+                <RadioButton
+                    android:id="@+id/radio_width_58"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="58 mm"
+                    android:checked="true" />
+
+                <RadioButton
+                    android:id="@+id/radio_width_80"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="80 mm" />
+            </RadioGroup>
+
+            <!-- Facturación en sitio -->
+            <LinearLayout
+                android:id="@+id/row_facturacion_sitio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="20dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Facturación en sitio"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#1C1C1E" />
+
+                <Switch
+                    android:id="@+id/switch_facturacion_sitio"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

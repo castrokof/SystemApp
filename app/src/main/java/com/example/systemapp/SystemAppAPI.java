@@ -7,9 +7,15 @@ import com.example.systemapp.data.model.DBListas;
 import com.example.systemapp.data.model.DBOrdenLecturas;
 import com.example.systemapp.data.model.DBOrdenLecturasEnviar;
 import com.example.systemapp.data.model.EnviarRespuesta;
+import com.example.systemapp.data.model.FacturaLocalEnviarDTO;
+import com.example.systemapp.data.model.FacturaResueltaDTO;
+import com.example.systemapp.data.model.FacturaSubidaResponse;
 import com.example.systemapp.data.model.LoginEnvio;
 import com.example.systemapp.data.model.LoginRespuesta;
 import com.example.systemapp.data.model.OrdenesPares;
+import com.example.systemapp.data.model.RangoFacturacionRequest;
+import com.example.systemapp.data.model.RangoFacturacionResponse;
+import com.example.systemapp.data.model.TarifaVigenteResponse;
 
 
 import java.util.List;
@@ -46,5 +52,23 @@ public interface SystemAppAPI{
 
     @POST("medidores")
      Call<Object> enviarordenes(@Body DBOrdenLecturasEnviar lecturas);
+
+
+    // ===== Facturación en Sitio — ver PLAN_FACTURACION_EN_SITIO.md =====
+    // Endpoints nuevos: el backend aún no los expone (contrato documentado en el plan para
+    // que el equipo de Laravel los implemente). Estas llamadas fallarán/no traerán datos
+    // hasta entonces — el código Android queda listo.
+
+    @POST("tarifaVigente")
+    Call<TarifaVigenteResponse> tarifaVigente();
+
+    @POST("rangoFacturacion")
+    Call<RangoFacturacionResponse> rangoFacturacion(@Body RangoFacturacionRequest request);
+
+    @POST("facturasResueltas")
+    Call<List<FacturaResueltaDTO>> facturasResueltas();
+
+    @POST("facturas")
+    Call<FacturaSubidaResponse> subirFactura(@Body FacturaLocalEnviarDTO factura);
 
 }

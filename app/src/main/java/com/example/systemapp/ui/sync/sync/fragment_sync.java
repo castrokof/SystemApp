@@ -36,19 +36,35 @@ import com.example.systemapp.SystemAppAPI;
 import com.example.systemapp.data.AdminSQLiteOpenHelper;
 import com.example.systemapp.data.SessionPrefs;
 import com.example.systemapp.data.Utilidades;
+import com.example.systemapp.data.factura.FacturaCalculada;
 import com.example.systemapp.data.model.DBListas;
 import com.example.systemapp.data.model.DBOrdenLecturas;
 import com.example.systemapp.data.model.DBOrdenLecturasEnviar;
+import com.example.systemapp.data.model.DesgloseServicioDTO;
 import com.example.systemapp.data.model.EnviarRespuesta;
+import com.example.systemapp.data.model.FacturaLocal;
+import com.example.systemapp.data.model.FacturaLocalEnviarDTO;
+import com.example.systemapp.data.model.FacturaResueltaDTO;
+import com.example.systemapp.data.model.FacturaResueltaServidor;
+import com.example.systemapp.data.model.FacturaSubidaResponse;
 import com.example.systemapp.data.model.LoginEnvio;
+import com.example.systemapp.data.model.RangoFacturacionRequest;
+import com.example.systemapp.data.model.RangoFacturacionResponse;
+import com.example.systemapp.data.model.TarifaVigenteResponse;
+import com.google.gson.Gson;
 import com.example.systemapp.databinding.FragmentSyncBinding;
 import com.google.android.material.card.MaterialCardView;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -76,6 +92,8 @@ public class fragment_sync extends Fragment {
     private View back_disables;
     private MaterialCardView cardSyncListas;
     private MaterialCardView cardSyncOrdenes;
+    private MaterialCardView cardSyncTarifas;
+    private MaterialCardView cardSyncFacturasResueltas;
     private MaterialCardView cardUpload;
 
     private TextView textViewStatus;
@@ -106,7 +124,18 @@ public class fragment_sync extends Fragment {
         // ✅ NUEVAS VISTAS
         cardSyncListas = root.findViewById(R.id.card_sync_listas);
         cardSyncOrdenes = root.findViewById(R.id.card_sync_ordenes);
+        cardSyncTarifas = root.findViewById(R.id.card_sync_tarifas);
+        cardSyncFacturasResueltas = root.findViewById(R.id.card_sync_facturas_resueltas);
         cardUpload = root.findViewById(R.id.card_upload);
+
+        // Facturación en Sitio: el backend de la mayoría de flavors todavía no expone estos
+        // endpoints (tarifaVigente/rangoFacturacion/facturasResueltas/facturas) — ocultar los
+        // cards nuevos evita que un lecturista de un cliente sin esta feature los toque y
+        // reciba errores de un endpoint que no existe. Ver com.example.systemapp.BuildConfig.
+        if (!com.example.systemapp.BuildConfig.FACTURACION_SITIO_SOPORTADA) {
+            cardSyncTarifas.setVisibility(View.GONE);
+            cardSyncFacturasResueltas.setVisibility(View.GONE);
+        }
         progresB_sync = root.findViewById(R.id.progresB_sync);
         textViewStatus = root.findViewById(R.id.textViewStatus);
         back_disables = root.findViewById(R.id.back_disabled);
@@ -123,6 +152,7 @@ public class fragment_sync extends Fragment {
         // ⭐ Cliente con interceptor
         OkHttpClient client = new OkHttpClient.Builder()
                 .addInterceptor(new AuthInterceptor(getContext()))
+                .addInterceptor(new com.example.systemapp.EmptyListOnErrorObjectInterceptor())
                 .build();
 
         systemapp = new Retrofit.Builder()
@@ -169,11 +199,118 @@ public class fragment_sync extends Fragment {
                             SessionPrefs.get(getActivity()).setPrefRutasPendientes(
                                     mPrefs.getInt("PREF_RUTAS_PENDIENTES", 0) + asignadas.size());
                         }
+
+                        // Facturación en Sitio: pedir rango de numeración de facturas para hoy,
+                        // solo si no queda uno vigente (evita gastar bloques innecesariamente en
+                        // cada resync del mismo día) — ver PLAN_FACTURACION_EN_SITIO.md, decisión 5.
+                        // Solo aplica al flavor que soporta la feature; los demás backends no
+                        // tienen el endpoint "rangoFacturacion" todavía.
+                        if (com.example.systemapp.BuildConfig.FACTURACION_SITIO_SOPORTADA) {
+                            solicitarRangoFacturacionSiHaceFalta(asignadas.size());
+                        }
                     }
                 }
 
                 @Override
                 public void onFailure(Call<List<DBOrdenLecturas>> call, Throwable t) {
+                    showProgress(false);
+                    getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                    Toast.makeText(getActivity(), t.getMessage(), Toast.LENGTH_LONG).show();
+                    Log.e("SyncFragment", t.getMessage());
+                }
+            });
+        });
+
+        // 🔹 Descargar tarifas (Facturación en Sitio) — ver PLAN_FACTURACION_EN_SITIO.md, contrato 1.3
+        cardSyncTarifas.setOnClickListener(v -> {
+            showProgress(true);
+            getActivity().getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+
+            systemAppAPI.tarifaVigente().clone().enqueue(new Callback<TarifaVigenteResponse>() {
+                @Override
+                public void onResponse(Call<TarifaVigenteResponse> call, Response<TarifaVigenteResponse> response) {
+                    showProgress(false);
+                    getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+
+                    if (!response.isSuccessful()) {
+                        Toast.makeText(getActivity(), "Error: " + response.message(), Toast.LENGTH_LONG).show();
+                        Log.e("SyncFragment", response.message());
+                        return;
+                    }
+
+                    TarifaVigenteResponse tarifa = response.body();
+                    if (tarifa != null) {
+                        adminSQLiteOpenHelper.guardarTarifaVigente(tarifa);
+
+                        if (tarifa.config_facturacion_sitio != null) {
+                            TarifaVigenteResponse.ConfigFacturacionSitioDTO cfg = tarifa.config_facturacion_sitio;
+                            if (cfg.habilitar_normal != null) {
+                                SessionPrefs.get(getActivity()).setPermiteFacturarNormal(cfg.habilitar_normal);
+                            }
+                            if (cfg.habilitar_alto != null) {
+                                SessionPrefs.get(getActivity()).setPermiteFacturarAlto(cfg.habilitar_alto);
+                            }
+                            if (cfg.habilitar_bajo != null) {
+                                SessionPrefs.get(getActivity()).setPermiteFacturarBajo(cfg.habilitar_bajo);
+                            }
+                            // habilitar_negativo se ignora a propósito: Caso B nunca se factura en
+                            // sitio, es una regla fija de negocio, no configurable desde el backend.
+                        }
+
+                        Toast.makeText(getActivity(), "Tarifas sincronizadas", Toast.LENGTH_LONG).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<TarifaVigenteResponse> call, Throwable t) {
+                    showProgress(false);
+                    getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                    Toast.makeText(getActivity(), t.getMessage(), Toast.LENGTH_LONG).show();
+                    Log.e("SyncFragment", t.getMessage());
+                }
+            });
+        });
+
+        // 🔹 Descargar facturas resueltas — ver PLAN_FACTURACION_EN_SITIO.md, contrato 1.4 y Fase 12
+        cardSyncFacturasResueltas.setOnClickListener(v -> {
+            showProgress(true);
+            getActivity().getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+
+            systemAppAPI.facturasResueltas().clone().enqueue(new Callback<List<FacturaResueltaDTO>>() {
+                @Override
+                public void onResponse(Call<List<FacturaResueltaDTO>> call, Response<List<FacturaResueltaDTO>> response) {
+                    showProgress(false);
+                    getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+
+                    if (!response.isSuccessful()) {
+                        Toast.makeText(getActivity(), "Error: " + response.message(), Toast.LENGTH_LONG).show();
+                        Log.e("SyncFragment", response.message());
+                        return;
+                    }
+
+                    List<FacturaResueltaDTO> resueltas = response.body();
+                    if (resueltas != null) {
+                        Gson gson = new Gson();
+                        for (FacturaResueltaDTO dto : resueltas) {
+                            FacturaResueltaServidor fr = new FacturaResueltaServidor();
+                            fr.setFacturaId(dto.factura_id);
+                            fr.setNumeroFactura(dto.numero_factura);
+                            fr.setLecturaId(dto.lectura_id);
+                            fr.setSuscriptor(dto.suscriptor);
+                            fr.setDesgloseJson(gson.toJson(dto));
+                            fr.setTotalAPagar(dto.total_a_pagar);
+                            fr.setEstado(dto.estado);
+                            fr.setImpresa(false);
+                            adminSQLiteOpenHelper.insertFacturaResuelta(fr);
+                        }
+                        Toast.makeText(getActivity(), "Facturas resueltas sincronizadas: " + resueltas.size(), Toast.LENGTH_LONG).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<List<FacturaResueltaDTO>> call, Throwable t) {
                     showProgress(false);
                     getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
                     Toast.makeText(getActivity(), t.getMessage(), Toast.LENGTH_LONG).show();
@@ -198,8 +335,12 @@ public class fragment_sync extends Fragment {
                     getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
 
                     if (!response.isSuccessful()) {
-                        Toast.makeText(getActivity(), "Error: " + response.message(), Toast.LENGTH_LONG).show();
-                        Log.e("SyncFragment", response.message());
+                        // El backend responde 403 {"error": "No puede sincronizar listas"}
+                        // cuando el usuario no tiene órdenes pendientes (ver CLAUDE.md) — se
+                        // muestra ese texto en vez del genérico "Forbidden" de HTTP.
+                        String mensaje = extraerMensajeError(response.errorBody(), response.message());
+                        Toast.makeText(getActivity(), mensaje, Toast.LENGTH_LONG).show();
+                        Log.e("SyncFragment", mensaje);
                         return;
                     }
 
@@ -232,7 +373,12 @@ public class fragment_sync extends Fragment {
             AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
             builder.setMessage("Se enviarán las lecturas realizadas. ¿Desea continuar?")
                     .setCancelable(false)
-                    .setPositiveButton("OK", (dialog, id) -> initUpload())
+                    .setPositiveButton("OK", (dialog, id) -> {
+                        initUpload();
+                        if (com.example.systemapp.BuildConfig.FACTURACION_SITIO_SOPORTADA) {
+                            initUploadFacturas(); // Facturación en Sitio — ver Fase 12
+                        }
+                    })
                     .setNegativeButton("Cancelar", (dialog, which) -> {
                         showProgress(false);
                         getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
@@ -248,7 +394,55 @@ public class fragment_sync extends Fragment {
         return root;
     }
 
+    // El backend manda los errores "sin resultados" como {"error": "..."} en el body (ver
+    // CLAUDE.md) — esto extrae ese texto para mostrarlo en vez del genérico de HTTP
+    // (ej. "Forbidden" para un 403), con fallback si el body no viene o no es el JSON esperado.
+    private String extraerMensajeError(ResponseBody errorBody, String fallbackHttp) {
+        if (errorBody == null) {
+            return fallbackHttp;
+        }
+        try {
+            String texto = errorBody.string();
+            com.google.gson.JsonObject json = new com.google.gson.JsonParser().parse(texto).getAsJsonObject();
+            if (json.has("error")) {
+                return json.get("error").getAsString();
+            }
+            return texto;
+        } catch (Exception e) {
+            return fallbackHttp;
+        }
+    }
 
+    // Facturación en Sitio — ver PLAN_FACTURACION_EN_SITIO.md, decisión 5 y contrato 1.2.
+    private void solicitarRangoFacturacionSiHaceFalta(int cantidadOrdenesRuta) {
+        String periodoActual = new SimpleDateFormat("yyyyMM", Locale.getDefault()).format(new Date());
+
+        if (adminSQLiteOpenHelper.tieneRangoFacturacionVigente(periodoActual)) {
+            return; // ya hay números disponibles para hoy, no gastar un bloque nuevo
+        }
+
+        systemAppAPI.rangoFacturacion(new RangoFacturacionRequest(Math.max(cantidadOrdenesRuta, 1)))
+                .clone().enqueue(new Callback<RangoFacturacionResponse>() {
+            @Override
+            public void onResponse(Call<RangoFacturacionResponse> call, Response<RangoFacturacionResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    adminSQLiteOpenHelper.guardarRangoFacturacion(response.body());
+                    Log.d("SyncFragment", "Rango de facturación asignado: " +
+                            response.body().secuencia_desde + "-" + response.body().secuencia_hasta);
+                } else {
+                    Log.w("SyncFragment", "No se pudo obtener rango de facturación: " +
+                            (response.message() != null ? response.message() : "sin body"));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<RangoFacturacionResponse> call, Throwable t) {
+                // No bloquea la sincronización de órdenes por esto — solo significa que
+                // "Facturación en sitio" no podrá emitir números hasta el próximo sync exitoso.
+                Log.w("SyncFragment", "Fallo al pedir rango de facturación: " + t.getMessage());
+            }
+        });
+    }
 
     public void initUpload(){
 
@@ -295,13 +489,20 @@ public class fragment_sync extends Fragment {
                     lectura = Integer.valueOf(ordentoupload.getLectura_actual()+"");
             }
 
-            String campoFoto1 =  "";
-            if (ordentoupload.getRuta_foto()!=null) {
-                String rutaFoto = ordentoupload.getRuta_foto();
-                campoFoto1 = Utilidades.encodeImage(rutaFoto);
+            Object campoFoto;
+            if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                List<String> fotosBase64 = new ArrayList<>();
+                for (String path : ordentoupload.getFotosList()) {
+                    fotosBase64.add(Utilidades.encodeImage(path));
+                }
+                campoFoto = fotosBase64;
+            } else {
+                String campoFoto1 = "";
+                if (ordentoupload.getRuta_foto() != null) {
+                    campoFoto1 = Utilidades.encodeImage(ordentoupload.getRuta_foto());
+                }
+                campoFoto = campoFoto1;
             }
-
-            String campoFoto = campoFoto1;
             String id = ordentoupload.getId();
             String tipo = "4";
             String finilec = ordentoupload.getFinilec();
@@ -401,6 +602,84 @@ public class fragment_sync extends Fragment {
 
 
 
+
+    // ===== Facturación en Sitio — subida de facturas locales pendientes (Fase 12) =====
+    // Mismo patrón que initUpload()/sendDataToServerOnetoOne(): cola pull-based basada en un
+    // estado persistido (aquí "factura_local.estado", allá "Uploadlec"), recorrido secuencial
+    // uno-a-uno, sin reintento automático en caso de fallo de red (se reintenta en el próximo
+    // "Subir Órdenes").
+    private void initUploadFacturas() {
+        List facturasLocales = adminSQLiteOpenHelper.getData("factura_local",
+                "estado = '" + FacturaLocal.ESTADO_PENDIENTE_SYNC + "'");
+        if (facturasLocales.size() > 0) {
+            sendFacturasLocalesOnetoOne(facturasLocales, 1, facturasLocales.size());
+        }
+    }
+
+    private void sendFacturasLocalesOnetoOne(final List facturasLocales, final int ciclo, final int total) {
+        if (facturasLocales.size() > 0) {
+            final FacturaLocal facturaLocal = (FacturaLocal) facturasLocales.get(0);
+
+            Gson gson = new Gson();
+            FacturaCalculada factura = gson.fromJson(facturaLocal.getDesgloseJson(), FacturaCalculada.class);
+
+            FacturaLocalEnviarDTO dto = new FacturaLocalEnviarDTO();
+            dto.id_local = facturaLocal.getIdLocal();
+            dto.numero_factura = facturaLocal.getNumeroFactura();
+            dto.lectura_id = facturaLocal.getLecturaId();
+            dto.suscriptor = facturaLocal.getSuscriptor();
+            dto.periodo = facturaLocal.getPeriodo();
+            dto.lectura_anterior = facturaLocal.getLecturaAnterior();
+            dto.lectura_actual = facturaLocal.getLecturaActual();
+            dto.consumo_m3 = facturaLocal.getConsumoM3();
+            dto.estrato_id_usado = facturaLocal.getEstratoIdUsado();
+            dto.tarifa_periodo_id_usado = facturaLocal.getTarifaPeriodoIdUsado();
+            if (factura != null) {
+                dto.acueducto = DesgloseServicioDTO.desde(factura.acueducto);
+                dto.alcantarillado = DesgloseServicioDTO.desde(factura.alcantarillado);
+                dto.aseo = DesgloseServicioDTO.desde(factura.aseo);
+                dto.saldo_anterior = factura.saldoAnterior;
+            }
+            dto.total_a_pagar = facturaLocal.getTotalAPagar();
+            dto.fecha_impresion = facturaLocal.getFechaImpresion();
+            dto.clasificacion = facturaLocal.getClasificacion();
+
+            if (facturaLocal.getAnulaAIdLocal() != null) {
+                List anulada = adminSQLiteOpenHelper.getData("factura_local",
+                        "id_local = '" + facturaLocal.getAnulaAIdLocal() + "'");
+                if (!anulada.isEmpty()) {
+                    dto.anula_numero_factura = ((FacturaLocal) anulada.get(0)).getNumeroFactura();
+                }
+            }
+
+            systemAppAPI.subirFactura(dto).clone().enqueue(new Callback<FacturaSubidaResponse>() {
+                @Override
+                public void onResponse(Call<FacturaSubidaResponse> call, Response<FacturaSubidaResponse> response) {
+                    if (response.isSuccessful() && response.body() != null && Boolean.TRUE.equals(response.body().success)) {
+                        // No se sobrescribe numero_factura ni total_a_pagar con la respuesta del
+                        // servidor: prevalece el valor ya impreso (decisión de negocio del plan).
+                        facturaLocal.setFacturaIdServidor(response.body().factura_id);
+                        facturaLocal.setSincronizado(true);
+                        facturaLocal.setEstado(FacturaLocal.ESTADO_SINCRONIZADA);
+                        adminSQLiteOpenHelper.insertFacturaLocal(facturaLocal, true);
+                    } else {
+                        Log.w("SyncFragment", "No se pudo subir factura " + facturaLocal.getNumeroFactura() + ": " +
+                                (response.message() != null ? response.message() : "sin body"));
+                    }
+
+                    facturasLocales.remove(0);
+                    sendFacturasLocalesOnetoOne(facturasLocales, ciclo + 1, total);
+                }
+
+                @Override
+                public void onFailure(Call<FacturaSubidaResponse> call, Throwable t) {
+                    Log.w("SyncFragment", "Fallo al subir facturas locales: " + t.getMessage());
+                    // No se corta la subida de lecturas por esto; las facturas pendientes se
+                    // reintentan en el próximo "Subir Órdenes".
+                }
+            });
+        }
+    }
 
     private void showProgress(boolean show) {
         progresB_sync.setVisibility(show ? View.VISIBLE : View.GONE);

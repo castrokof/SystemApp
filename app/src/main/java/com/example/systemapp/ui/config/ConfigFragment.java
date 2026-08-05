@@ -25,7 +25,9 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.RadioGroup;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -39,6 +41,7 @@ import com.example.systemapp.R;
 import com.example.systemapp.data.SessionPrefs;
 import com.example.systemapp.databinding.FragmentConfigBinding;
 import com.example.systemapp.data.Utils;
+import com.example.systemapp.data.print.BluetoothPrinterClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +62,9 @@ public class ConfigFragment extends Fragment {
     private ImageView iconStatus;
     private Spinner spinnerBluetoothDevices;
     private ProgressBar progressSearch;
+    private RadioGroup radioGroupPrinterWidth;
+    private Switch switchFacturacionSitio;
+    private android.view.View rowFacturacionSitio;
     private FragmentConfigBinding binding;
 
     private SharedPreferences mPrefs;
@@ -151,6 +157,9 @@ public class ConfigFragment extends Fragment {
         iconStatus = root.findViewById(R.id.icon_status);
         spinnerBluetoothDevices = root.findViewById(R.id.spinner_bluetooth_devices);
         progressSearch = root.findViewById(R.id.progress_search);
+        radioGroupPrinterWidth = root.findViewById(R.id.radio_group_printer_width);
+        switchFacturacionSitio = root.findViewById(R.id.switch_facturacion_sitio);
+        rowFacturacionSitio = root.findViewById(R.id.row_facturacion_sitio);
 
         // Inicializar Bluetooth
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -165,10 +174,33 @@ public class ConfigFragment extends Fragment {
         // Verificar si hay impresora guardada
         loadSavedPrinter();
 
+        // Ancho de papel y facturación en sitio (persistencia inmediata, sin botón "Guardar")
+        loadPrinterWidthAndFacturacionSitio();
+
         // Configurar listeners
         setupListeners();
 
         return root;
+    }
+
+    private void loadPrinterWidthAndFacturacionSitio() {
+        int widthMM = SessionPrefs.get(getActivity()).getPrefPrinterWidthMM();
+        radioGroupPrinterWidth.check(widthMM == 80 ? R.id.radio_width_80 : R.id.radio_width_58);
+        radioGroupPrinterWidth.setOnCheckedChangeListener((group, checkedId) -> {
+            int selectedWidth = (checkedId == R.id.radio_width_80) ? 80 : 58;
+            SessionPrefs.get(getActivity()).setPrefPrinterWidthMM(selectedWidth);
+        });
+
+        // Facturación en sitio: solo aplica al flavor cuyo backend soporta los endpoints nuevos
+        // (tarifaVigente/rangoFacturacion/facturasResueltas/facturas) — en los demás se oculta
+        // por completo para no ofrecer un toggle que no puede funcionar.
+        if (!com.example.systemapp.BuildConfig.FACTURACION_SITIO_SOPORTADA) {
+            rowFacturacionSitio.setVisibility(android.view.View.GONE);
+        } else {
+            switchFacturacionSitio.setChecked(SessionPrefs.get(getActivity()).isFacturacionSitioEnabled());
+            switchFacturacionSitio.setOnCheckedChangeListener((buttonView, isChecked) ->
+                    SessionPrefs.get(getActivity()).setFacturacionSitioEnabled(isChecked));
+        }
     }
 
     private void setupListeners() {
@@ -561,116 +593,30 @@ public class ConfigFragment extends Fragment {
         Toast.makeText(getContext(), "🔍 Conectando a impresora...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
-            BluetoothSocket tempSocket = null;
-            java.io.OutputStream tempOutputStream = null;
-            boolean connected = false;
+            BluetoothPrinterClient.Connection connection = null;
 
             try {
-                // 🔹 PASO 1: Cancelar discovery
-                if (bluetoothAdapter.isDiscovering()) {
-                    bluetoothAdapter.cancelDiscovery();
-                    Log.d(TAG, "Discovery cancelado");
-                }
-                Thread.sleep(500);
-
-                BluetoothDevice device = bluetoothAdapter.getRemoteDevice(printerMac);
-                Log.d(TAG, "📱 Intentando conectar a: " + printerName + " (" + printerMac + ")");
-
-                // 🔹 PASO 2: Verificar si ya hay un canal guardado
-                int savedChannel = mPrefs.getInt("PREF_PRINTER_CHANNEL", 0);
-
-                if (savedChannel > 0) {
-                    Log.d(TAG, "🎯 Intentando con canal guardado: " + savedChannel);
-                    try {
-                        java.lang.reflect.Method m = device.getClass().getMethod(
-                                "createRfcommSocket",
-                                new Class[]{int.class}
-                        );
-                        tempSocket = (BluetoothSocket) m.invoke(device, savedChannel);
-                        tempSocket.connect();
-                        connected = true;
-
-                        Log.d(TAG, "✅ Conectado con canal guardado: " + savedChannel);
-
-                        getActivity().runOnUiThread(() ->
-                                Toast.makeText(getContext(), "✅ Conectado (canal " + savedChannel + ")", Toast.LENGTH_SHORT).show()
-                        );
-
-                    } catch (Exception e) {
-                        Log.w(TAG, "⚠️ Canal guardado falló, buscando nuevo canal...");
-                        try {
-                            if (tempSocket != null) tempSocket.close();
-                        } catch (Exception ex) {}
-                    }
-                }
-
-                // 🔹 PASO 3: Si no conectó, buscar canal correcto
-                if (!connected) {
-                    getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "🔍 Buscando canal correcto...", Toast.LENGTH_SHORT).show()
-                    );
-
-                    for (int channel = 1; channel <= 30 && !connected; channel++) {
-                        try {
-                            Log.d(TAG, "Probando canal " + channel + "...");
-
-                            java.lang.reflect.Method m = device.getClass().getMethod(
-                                    "createRfcommSocket",
-                                    new Class[]{int.class}
-                            );
-
-                            tempSocket = (BluetoothSocket) m.invoke(device, channel);
-                            tempSocket.connect();
-
-                            // ✅ Conexión exitosa
-                            connected = true;
-                            final int successChannel = channel;
-
-                            getActivity().runOnUiThread(() ->
-                                    Toast.makeText(getContext(),
-                                            "✅ Conectado en canal " + successChannel,
-                                            Toast.LENGTH_SHORT).show()
-                            );
-
-                            Log.d(TAG, "✅✅✅ ÉXITO EN CANAL " + channel + " ✅✅✅");
-
-                            // 🔥 GUARDAR EL CANAL
-                            mPrefs.edit().putInt("PREF_PRINTER_CHANNEL", channel).apply();
-
-                            break;
-
-                        } catch (Exception e) {
-                            Log.w(TAG, "Canal " + channel + " falló");
-                            try {
-                                if (tempSocket != null) {
-                                    tempSocket.close();
-                                    tempSocket = null;
-                                }
-                            } catch (Exception ex) {}
-
-                            // Actualizar progreso cada 5 canales
-                            if (channel % 5 == 0) {
-                                final int currentChannel = channel;
+                // 🔹 PASOS 1-5: cancelar discovery, resolver dispositivo, conectar
+                // (canal guardado o búsqueda 1-30) — extraído a BluetoothPrinterClient
+                connection = BluetoothPrinterClient.connect(bluetoothAdapter, mPrefs, printerMac,
+                        channel -> {
+                            // Mismo feedback de progreso que antes: aviso cada 5 canales probados
+                            if (channel % 5 == 0 && getActivity() != null) {
                                 getActivity().runOnUiThread(() ->
                                         Toast.makeText(getContext(),
-                                                "Probando canal " + currentChannel + "/30...",
+                                                "Probando canal " + channel + "/30...",
                                                 Toast.LENGTH_SHORT).show()
                                 );
-                                Thread.sleep(100);
                             }
-                        }
-                    }
-                }
+                        });
+                final java.io.OutputStream finalOutputStream = connection.outputStream;
+                final int connectedChannel = connection.channelUsed;
 
-                // 🔹 PASO 4: Verificar si se conectó
-                if (!connected || tempSocket == null) {
-                    throw new java.io.IOException("❌ No se pudo conectar después de probar 30 canales");
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "✅ Conectado en canal " + connectedChannel, Toast.LENGTH_SHORT).show()
+                    );
                 }
-
-                // 🔹 PASO 5: Obtener OutputStream
-                tempOutputStream = tempSocket.getOutputStream();
-                final java.io.OutputStream finalOutputStream = tempOutputStream;
-                final BluetoothSocket finalSocket = tempSocket;
 
                 getActivity().runOnUiThread(() ->
                         Toast.makeText(getContext(), "🖨️ Imprimiendo...", Toast.LENGTH_SHORT).show()
@@ -717,8 +663,7 @@ public class ConfigFragment extends Fragment {
                 Thread.sleep(2000);
 
                 // 🔹 PASO 9: Cerrar conexión
-                finalOutputStream.close();
-                finalSocket.close();
+                BluetoothPrinterClient.closeQuietly(connection);
 
                 // 🔹 PASO 10: Notificar éxito
                 getActivity().runOnUiThread(() ->
@@ -763,13 +708,8 @@ public class ConfigFragment extends Fragment {
                             .show();
                 });
             } finally {
-                // 🔹 PASO 11: Limpiar recursos
-                try {
-                    if (tempOutputStream != null) tempOutputStream.close();
-                    if (tempSocket != null) tempSocket.close();
-                } catch (Exception e) {
-                    Log.w(TAG, "Error cerrando recursos");
-                }
+                // 🔹 PASO 11: Limpiar recursos (closeQuietly es idempotente/null-safe)
+                BluetoothPrinterClient.closeQuietly(connection);
             }
         }).start();
     }

@@ -108,6 +108,42 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- Cámara: captura de fotos independiente del flujo de lectura — centrada,
+                         a la misma altura de row1, para no tapar Susc/Orden a los lados -->
+                    <ImageButton
+                        android:id="@+id/btnCamara"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/nav_button_background"
+                        android:contentDescription="Tomar foto"
+                        android:src="@drawable/ic_menu_camera"
+                        app:layout_constraintBottom_toBottomOf="@+id/row1"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="@+id/row1"
+                        app:tint="#007AFF" />
+
+                    <!-- Badge de conteo de fotos — círculo tipo notificación en la esquina
+                         superior derecha del ícono, no ocupa espacio vertical propio -->
+                    <TextView
+                        android:id="@+id/textVFotoCount"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:background="@drawable/badge_foto_count"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:text="5"
+                        android:textColor="#FFFFFF"
+                        android:textSize="9sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        app:layout_constraintEnd_toEndOf="@+id/btnCamara"
+                        app:layout_constraintTop_toTopOf="@+id/btnCamara"
+                        app:layout_constraintHorizontal_bias="1"
+                        app:layout_constraintVertical_bias="0"
+                        android:translationX="6dp"
+                        android:translationY="-6dp" />
+
                     <!-- Divider delgado -->
                     <View
                         android:id="@+id/divider"
@@ -551,5 +587,25 @@
         app:layout_constraintBottom_toBottomOf="parent"
 
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Banner de mensajes cortos, reemplaza los Toast del sistema — desde Android 11 (API 30)
+         la plataforma ignora Toast#setGravity() en toasts normales, así que un Toast nunca se
+         puede mover de la parte inferior; con esta vista propia sí controlamos la posición. -->
+    <TextView
+        android:id="@+id/bannerMensaje"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="48dp"
+        android:background="@drawable/toast_banner_background"
+        android:elevation="12dp"
+        android:maxWidth="320dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:visibility="gone" />
 
 </FrameLayout>

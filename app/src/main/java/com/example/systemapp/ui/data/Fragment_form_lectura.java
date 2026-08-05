@@ -49,9 +49,13 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.animation.OvershootInterpolator;
 import android.view.inputmethod.InputMethodManager;
+import android.view.Gravity;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -98,6 +102,14 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.example.systemapp.data.Utils;
 import com.example.systemapp.data.PrinterCommands;
+import com.example.systemapp.data.print.BluetoothPrinterClient;
+import com.example.systemapp.data.print.FacturaPrintTemplateBuilder;
+import com.example.systemapp.data.print.HistoricoConsumoChartRenderer;
+import com.example.systemapp.data.factura.FacturaCalculada;
+import com.example.systemapp.data.factura.FacturacionServiceLocal;
+import com.example.systemapp.data.model.FacturaLocal;
+import com.example.systemapp.data.model.TarifaVigenteResponse;
+import com.google.gson.Gson;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -139,6 +151,10 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     public boolean bloquear_comentario = false;
 
     public DBOrdenLecturas orden = null;
+    // Con FOTOS_MULTIPLES_SOPORTADA: distingue si la cámara se abrió como fallback desde
+    // Guardar (sin fotos previas — hay que guardar apenas vuelva) o desde btnCamara (el
+    // usuario solo quiere agregar/retomar una foto, sin guardar todavía).
+    private boolean fotoDesdeGuardar = false;
     public int cantidadFotos = 0;
     public int verificacion = 1;
     public boolean fotoAdicional = false;
@@ -166,6 +182,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     private FloatingActionButton btnLecturaMotivoClose;
 
     private FloatingActionButton btnLecturaImprimir;
+
+    // Captura de fotos independiente (ver FOTOS_MULTIPLES_SOPORTADA)
+    private ImageButton btnCamara;
+    private TextView textVFotoCount;
+    private static final int MAX_FOTOS = 5;
 
     //Listener para comunicar cambios entre fragments
     private fragment_ordenes parentFragment;
@@ -249,6 +270,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     // ✅ NUEVAS VARIABLES PARA SWIPE MEJORADO
     private GestureDetector gestureDetector;
     private boolean isProcessing = false;
+    private long ultimoClickGuardar = 0L;
+    private final Handler bannerHandler = new Handler(Looper.getMainLooper());
+    private Runnable ocultarBannerRunnable;
     private static final int SWIPE_THRESHOLD = 100;
     private static final int SWIPE_VELOCITY_THRESHOLD = 100;
 
@@ -422,9 +446,18 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 editTextLectura = binding.editTextLectura;
                 textVmotivov = binding.textVmotivov;
                 btnLecturaMotivoClose = binding.btnLecturaMotivoClose;
+                btnCamara = binding.btnCamara;
+                textVFotoCount = binding.textVFotoCount;
                 //txt_lectura_obsval = view.findViewById(R.id.txt_lectura_obsval);
                 //btn_lectura_obsclose = view.findViewById(R.id.btn_lectura_obsclose);
 
+                if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                    btnCamara.setVisibility(View.VISIBLE);
+                    btnCamara.setOnClickListener(v -> onClickBtnCamara());
+                } else {
+                    btnCamara.setVisibility(View.GONE);
+                    textVFotoCount.setVisibility(View.GONE);
+                }
 
                 if (bundle.getBoolean("edit")) {
                     edit = true;
@@ -440,6 +473,14 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 //consultar las criticas desde la base de datos
                 //obtendremos un objeto de tipo ElementosListasDB
                 final List criticas = adminSQLiteOpenHelper.getData(DBdefinicionOrdenes.LISTAS.TABLE_NAME, condicion_criticas);
+
+                // Cantidad de fotos requeridas por crítica, configurable desde el panel web
+                // (marca_id='FOTOS_CRITICA', codigo=código de crítica, descripcion=cantidad).
+                // Reutiliza el mismo sync de catálogos que ya existe (POST /api/marcas) — sin
+                // filas sembradas, getCantidadFotosParaCritica() cae en el default de 1 foto,
+                // comportamiento idéntico al actual.
+                final List fotosCriticaConfig = adminSQLiteOpenHelper.getData(
+                        DBdefinicionOrdenes.LISTAS.TABLE_NAME, "marca_id = 'FOTOS_CRITICA'");
 
                 /*
                  listas de critica según el código
@@ -499,6 +540,20 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 btnSave.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        // Debounce: algunos lecturistas presionan Guardar varias veces seguidas
+                        // (doble/triple clic) esperando que "responda" — sin este freno, cada
+                        // clic vuelve a correr el switch de validación de cero (incluida la
+                        // lectura ya en pantalla), pudiendo guardar un estado a medio confirmar.
+                        // isProcessing (más abajo, dentro de finalizarRegistroLectura) no alcanza
+                        // a cubrir esto porque en la primera pasada de una crítica ese método
+                        // todavía no se llama.
+                        long ahora = System.currentTimeMillis();
+                        if (ahora - ultimoClickGuardar < 800) {
+                            Log.d("Fragment_form_lectura", "Clic de Guardar ignorado (doble clic)");
+                            return;
+                        }
+                        ultimoClickGuardar = ahora;
+
                         Log.d("Fragment_form_lectura", "Guardar...");
 
                         if (posDefaultCausa == 0) {//si se cumple esta condiciòn quiere decir que no hay
@@ -515,15 +570,16 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                 orden.setLectura_actual(Integer.parseInt(editTextLectura.getText().toString()));
                             } catch (NumberFormatException e) {
                                 editTextLectura.setText("");
-                                Toast.makeText(getActivity(), "El valor de lectura es inválido o demasiado grande, por favor verifique",
-                                        Toast.LENGTH_LONG).show();
+                                mostrarToast("El valor de lectura es inválido o demasiado grande, por favor verifique",
+                                        Toast.LENGTH_LONG);
                             }
 
                             String validacion = Validador.validaciones(orden);
 
                             switch (validacion) {
                                 case Constants.VALIDACION1:
-                                    cantidadFotos = 1;
+                                    cantidadFotos = getCantidadFotosParaCritica(
+                                            ((DBListas) criticas.get(3)).getCodigo(), fotosCriticaConfig);
                                     orden.setCritica(String.valueOf(Integer.parseInt(
                                             ((DBListas) criticas.get(3)).getCodigo()))+"-"+
                                             ((DBListas) criticas.get(3)).getDescripcion());
@@ -542,13 +598,14 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                                 "", null);
                                         verificacion++;
                                     } else {
-                                        cantidadFotos = 1;
+                                        cantidadFotos = getCantidadFotosParaCritica(
+                                                ((DBListas) criticas.get(0)).getCodigo(), fotosCriticaConfig);
                                         orden.setCritica(String.valueOf(Integer.parseInt(
                                                 ((DBListas) criticas.get(0)).getCodigo())+"-"+
                                                 ((DBListas) criticas.get(0)).getDescripcion()));
                                         displayPrompt(getActivity(), "<h3><b>--" + criticas.get(0).toString() +
                                                         " --</b><h3><br>" + getString(R.string.mensaje_critica),
-                                                "dispatchTakePictureIntent", orden);
+                                                accionFoto(), orden);
                                         verificacion = 1;
                                     }
                                     break;
@@ -563,12 +620,13 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                                 "", null);
                                         verificacion++;
                                     } else {
-                                        cantidadFotos = 1;
+                                        cantidadFotos = getCantidadFotosParaCritica(
+                                                ((DBListas) criticas.get(1)).getCodigo(), fotosCriticaConfig);
                                         orden.setCritica(String.valueOf(Integer.parseInt(
                                                 ((DBListas) criticas.get(1)).getCodigo()))+"-"+((DBListas) criticas.get(1)).getDescripcion());
                                         displayPrompt(getActivity(), "<h3><b>-- " + criticas.get(1).toString() +
                                                         " --</b><h3><br>" + getString(R.string.mensaje_critica),
-                                                "dispatchTakePictureIntent", orden);
+                                                accionFoto(), orden);
                                         verificacion = 1;
                                     }
                                     break;
@@ -581,13 +639,14 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                                 "", null);
                                         verificacion++;
                                     } else {
-                                        cantidadFotos = 1;
+                                        cantidadFotos = getCantidadFotosParaCritica(
+                                                ((DBListas) criticas.get(2)).getCodigo(), fotosCriticaConfig);
                                         orden.setCritica(String.valueOf(Integer.parseInt(
                                                 ((DBListas) criticas.get(2)).getCodigo()))+"-"+
                                                 ((DBListas) criticas.get(2)).getDescripcion());
                                         displayPrompt(getActivity(), "<h3><b>-- " + criticas.get(2).toString() +
                                                         " --</b><h3><br>" + getString(R.string.mensaje_critica),
-                                                "dispatchTakePictureIntent", orden);
+                                                accionFoto(), orden);
                                         verificacion = 1;
                                     }
                                     break;
@@ -600,13 +659,14 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                                 "", null);
                                         verificacion++;
                                     } else {
-                                        cantidadFotos = 1;
+                                        cantidadFotos = getCantidadFotosParaCritica(
+                                                ((DBListas) criticas.get(2)).getCodigo(), fotosCriticaConfig);
                                         orden.setCritica(String.valueOf(Integer.parseInt(
                                                 ((DBListas) criticas.get(2)).getCodigo()))+"-"+
                                                 ((DBListas) criticas.get(2)).getDescripcion());
                                         displayPrompt(getActivity(), "<h3><b>-- " + criticas.get(2).toString() +
                                                         " --</b><h3><br>" + getString(R.string.mensaje_critica),
-                                                "dispatchTakePictureIntent", orden);
+                                                accionFoto(), orden);
                                         verificacion = 1;
                                     }
                                     break;
@@ -622,7 +682,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                     }
 
                                     //Habilitar o deshabilitar la foto obligatoria en consumo normal
-                                    dispatchTakePictureIntent(orden.getId());
+                                    if (!com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                                        dispatchTakePictureIntent(orden.getId());
+                                    } else {
+                                        continuarConFotoOGuardar(orden.getId());
+                                    }
                                     break;
                             }
 
@@ -643,7 +707,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                     //manda a imprimir verificando si es el último registro asociado por contrato
                                     preparetoprint(orden);
                                 }
-                                dispatchTakePictureIntent(orden.getId());
+                                if (!com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                                    dispatchTakePictureIntent(orden.getId());
+                                } else {
+                                    continuarConFotoOGuardar(orden.getId());
+                                }
                             }
 
                         }
@@ -681,6 +749,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                         orden.setCausa(null);
                         mensajesFotos = null;
                         posDefaultCausa = 0;
+                        editTextLectura.setText("");
                         editTextLectura.setEnabled(true);
                         btnLecturaMotivoClose.hide();
                     }
@@ -728,6 +797,26 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     });
 
 
+    // El diálogo de confirmación de crítica siempre pasa por la rama "dispatchTakePictureIntent"
+    // de displayPrompt — con FOTOS_MULTIPLES_SOPORTADA esa rama guarda directo (la foto ya se
+    // tomó o no con btnCamara); sin el flag, dispara la cámara como antes.
+    private String accionFoto() {
+        return "dispatchTakePictureIntent";
+    }
+
+    // FOTOS_MULTIPLES_SOPORTADA: si todavía no hay ninguna foto, abre la cámara como fallback
+    // (mismo comportamiento de siempre) y guarda automáticamente al volver de tomarla
+    // (onActivityResult, vía fotoDesdeGuardar). Si ya hay al menos una foto (tomada antes con
+    // btnCamara), guarda directo sin volver a pedir.
+    private void continuarConFotoOGuardar(String idOrden) {
+        if (orden.getFotosList().isEmpty()) {
+            fotoDesdeGuardar = true;
+            dispatchTakePictureIntent(idOrden);
+        } else {
+            finalizarRegistroLectura();
+        }
+    }
+
     private void dispatchTakePictureIntent(String idOrden) {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
@@ -752,8 +841,8 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
             startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
             //mostrar mensaje si existe
-            if (mensajesFotos != null) {
-                Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+            if (mensajesFotos != null && !mensajesFotos.isEmpty()) {
+                mostrarToast(mensajesFotos.get(0), Toast.LENGTH_SHORT);
             }
 
             Log.d("Fragment_form_lectura", GuardarFotos.currentPhotoPath + " aquí estaría");
@@ -771,15 +860,33 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             //Bitmap imageBitmap = (Bitmap) extras.get("data");
             //imageView.setImageBitmap(imageBitmap);
 
+            if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                orden.agregarFoto(GuardarFotos.currentPhotoPath);
+                refreshFotoBadge();
+                persistirFotoSiEnEdicion();
+                if (fotoDesdeGuardar) {
+                    // La cámara se abrió como fallback desde Guardar (no había fotos aún) —
+                    // al volver con la foto, se completa el guardado automáticamente, igual
+                    // que el flujo de siempre.
+                    fotoDesdeGuardar = false;
+                    finalizarRegistroLectura();
+                }
+                // Si vino de btnCamara (fotoDesdeGuardar==false), solo se agrega/refresca —
+                // el usuario decide cuándo tomar más fotos y cuándo tocar Guardar.
+                return;
+            }
+
             //almacenar la ruta de la foto
             orden.setRuta_foto((orden.getRuta_foto() == null) ? GuardarFotos.currentPhotoPath : orden.getRuta_foto() + ", " + GuardarFotos.currentPhotoPath);
             Log.d("Fragment_form_lectura", "ruta_foto " + orden.getRuta_foto());
 
             cantidadFotos--;
             if (cantidadFotos > 0) {
-                if (mensajesFotos != null) {
+                if (mensajesFotos != null && !mensajesFotos.isEmpty()) {
                     mensajesFotos.remove(0);
-                    Toast.makeText(getActivity(), mensajesFotos.get(0), Toast.LENGTH_SHORT).show();
+                    if (!mensajesFotos.isEmpty()) {
+                        mostrarToast(mensajesFotos.get(0), Toast.LENGTH_SHORT);
+                    }
                 }
                 dispatchTakePictureIntent(orden.getId());
             } else {
@@ -793,16 +900,190 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             if (requestCode == REQUEST_ENABLE_BT) {
                 //indica que se pidió permitir habilitar el bluetooth
 
+            } else if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                // Cancelar la cámara no fuerza reintento (ni siquiera si vino del fallback de
+                // Guardar) — el usuario puede tocar Guardar de nuevo cuando quiera.
+                Log.d(TAG, "Captura de foto cancelada por el usuario");
+                fotoDesdeGuardar = false;
             } else {
                 if (!fotoAdicional) {
                     //sino indica que no se tomó foto y se obliga a que se tome
-                    Toast.makeText(getActivity(), getString(R.string.foto_req), Toast.LENGTH_SHORT).show();
+                    mostrarToast(getString(R.string.foto_req), Toast.LENGTH_SHORT);
                     dispatchTakePictureIntent(orden.getId());
                 } else
                     fotoAdicional = false;
             }
 
         }
+    }
+
+    // ===================== Captura de fotos independiente (btnCamara) =====================
+    // Solo activo con FOTOS_MULTIPLES_SOPORTADA — ver PLAN de fotos por orden.
+
+    private void refreshFotoBadge() {
+        if (textVFotoCount == null || orden == null) {
+            return;
+        }
+        int cantidad = orden.getFotosList().size();
+        if (cantidad > 0) {
+            textVFotoCount.setText(String.valueOf(cantidad));
+            textVFotoCount.setVisibility(View.VISIBLE);
+        } else {
+            textVFotoCount.setVisibility(View.GONE);
+        }
+    }
+
+    private void onClickBtnCamara() {
+        int cantidad = orden.getFotosList().size();
+        if (cantidad == 0) {
+            tomarFoto();
+            return;
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+        builder.setTitle("Fotos (" + cantidad + "/" + MAX_FOTOS + ")");
+        if (cantidad < MAX_FOTOS) {
+            builder.setPositiveButton("Tomar foto", (dialog, which) -> tomarFoto());
+        }
+        builder.setNeutralButton("Ver fotos", (dialog, which) -> mostrarGaleriaFotos());
+        builder.setNegativeButton("Cancelar", null);
+        builder.show();
+    }
+
+    private void tomarFoto() {
+        int siguienteNumero = orden.getFotosList().size() + 1;
+        mostrarToast("Tomando foto " + siguienteNumero, Toast.LENGTH_SHORT);
+        dispatchTakePictureIntent(orden.getId());
+    }
+
+    // Todos los mensajes cortos de esta pantalla salen arriba, en un banner propio dentro del
+    // layout — abajo quedan tapados por el botón físico/virtual del obturador cuando se abre
+    // la cámara del sistema encima, y por los controles de la impresora en el flujo de
+    // impresión. Un Toast normal no sirve para esto: desde Android 11 (API 30) la plataforma
+    // ignora Toast#setGravity(), los toasts de texto siempre salen abajo sin importar lo que
+    // se le pida — por eso este banner es una vista propia, no un Toast del sistema.
+    private void mostrarToast(String mensaje, int duracion) {
+        if (binding == null) {
+            return;
+        }
+        TextView banner = binding.bannerMensaje;
+        banner.setText(mensaje);
+        banner.setVisibility(View.VISIBLE);
+        banner.setAlpha(1f);
+
+        if (ocultarBannerRunnable != null) {
+            bannerHandler.removeCallbacks(ocultarBannerRunnable);
+        }
+        long duracionMs = (duracion == Toast.LENGTH_LONG) ? 3500 : 2000;
+        ocultarBannerRunnable = () -> banner.setVisibility(View.GONE);
+        bannerHandler.postDelayed(ocultarBannerRunnable, duracionMs);
+    }
+
+    // Cuando se retoma una foto: la quita de la orden y abre la cámara para reemplazarla
+    // (se agrega al final de la lista, no intenta preservar la posición original).
+    private void retomarFoto(String pathAnterior) {
+        orden.quitarFoto(pathAnterior);
+        refreshFotoBadge();
+        persistirFotoSiEnEdicion();
+        tomarFoto();
+    }
+
+    private void mostrarGaleriaFotos() {
+        List<String> fotos = orden.getFotosList();
+        if (fotos.isEmpty()) {
+            return;
+        }
+
+        LinearLayout contenedor = new LinearLayout(getActivity());
+        contenedor.setOrientation(LinearLayout.HORIZONTAL);
+        int paddingPx = (int) (12 * getResources().getDisplayMetrics().density);
+        contenedor.setPadding(paddingPx, paddingPx, paddingPx, paddingPx);
+
+        int miniaturaPx = (int) (96 * getResources().getDisplayMetrics().density);
+        for (String path : fotos) {
+            LinearLayout item = new LinearLayout(getActivity());
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setPadding(0, 0, paddingPx, 0);
+
+            ImageView imageView = new ImageView(getActivity());
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(miniaturaPx, miniaturaPx);
+            imageView.setLayoutParams(params);
+            imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            imageView.setImageBitmap(decodeThumbnail(path, miniaturaPx));
+            imageView.setOnClickListener(v -> verFotoCompleta(path));
+            item.addView(imageView);
+
+            TextView btnRetomar = new TextView(getActivity());
+            btnRetomar.setText("Retomar");
+            btnRetomar.setTextColor(0xFF007AFF);
+            btnRetomar.setGravity(Gravity.CENTER);
+            btnRetomar.setPadding(0, paddingPx / 2, 0, 0);
+            btnRetomar.setOnClickListener(v -> {
+                // El diálogo de galería ya se está cerrando junto con este click; se dispara
+                // el reemplazo directo sin pedir confirmación adicional.
+                retomarFoto(path);
+            });
+            item.addView(btnRetomar);
+
+            contenedor.addView(item);
+        }
+
+        HorizontalScrollView scroll = new HorizontalScrollView(getActivity());
+        scroll.addView(contenedor);
+
+        new AlertDialog.Builder(getActivity())
+                .setTitle("Fotos de la orden")
+                .setView(scroll)
+                .setPositiveButton("Cerrar", null)
+                .show();
+    }
+
+    private void verFotoCompleta(String path) {
+        Bitmap bitmap = decodeThumbnail(path, 1200);
+        if (bitmap == null) {
+            mostrarToast("No se pudo abrir la foto", Toast.LENGTH_SHORT);
+            return;
+        }
+        ImageView imageView = new ImageView(getActivity());
+        imageView.setImageBitmap(bitmap);
+        imageView.setAdjustViewBounds(true);
+        new AlertDialog.Builder(getActivity())
+                .setView(imageView)
+                .setPositiveButton("Cerrar", null)
+                .show();
+    }
+
+    // Decodifica solo una versión reducida del archivo (evita OutOfMemory con fotos de
+    // cámara a resolución completa) — mismo patrón de inSampleSize que Utilidades.encodeImage.
+    private Bitmap decodeThumbnail(String path, int targetPx) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(path, bounds);
+
+            int inSampleSize = 1;
+            while ((bounds.outWidth / inSampleSize) > targetPx * 2) {
+                inSampleSize *= 2;
+            }
+
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = inSampleSize;
+            return BitmapFactory.decodeFile(path, options);
+        } catch (Exception e) {
+            Log.e(TAG, "Error decodificando miniatura: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // En modo edición (orden ya ejecutada, reabierta desde "Ejecutadas") no corre
+    // finalizarRegistroLectura() — hay que persistir y reintentar la subida de una vez al
+    // agregar/quitar una foto, en vez de esperar a un guardado que en ese modo no se dispara.
+    private void persistirFotoSiEnEdicion() {
+        if (!edit || orden == null) {
+            return;
+        }
+        adminSQLiteOpenHelper.insertOrden(orden, true);
+        sendDataToServer(orden);
     }
 
 
@@ -814,7 +1095,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         // ✅ VALIDACIÓN 1: Evitar múltiples ejecuciones
         if (isProcessing) {
             Log.d(TAG, "⚠️ Ya se está procesando un registro");
-            Toast.makeText(getActivity(), "Procesando, por favor espere...", Toast.LENGTH_SHORT).show();
+            mostrarToast("Procesando, por favor espere...", Toast.LENGTH_SHORT);
             return;
         }
 
@@ -833,7 +1114,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
         if (!tieneLectura && !tieneCausa) {
             Log.e(TAG, "❌ Registro inválido: sin lectura, (lectura 0 sin critica), ni causa");
-            Toast.makeText(getActivity(), "Debe ingresar una lectura valida o seleccionar un motivo", Toast.LENGTH_LONG).show();
+            mostrarToast("Debe ingresar una lectura valida o seleccionar un motivo", Toast.LENGTH_LONG);
 
             // Rehabilitar botón
             isProcessing = false;
@@ -848,7 +1129,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             int lectura = Integer.parseInt(orden.getLectura_actual().toString());
             if (lectura == 0 && !tieneCritica) {
                 Log.e(TAG, "❌ Registro inválido: lectura 0 sin crítica");
-                Toast.makeText(getActivity(), "Si la lectura es 0 debe tener una crítica obligatoriamente", Toast.LENGTH_LONG).show();
+                mostrarToast("Si la lectura es 0 debe tener una crítica obligatoriamente", Toast.LENGTH_LONG);
                 isProcessing = false;
                 btnSave.setEnabled(true);
                 return;
@@ -856,9 +1137,24 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         }
 
         // ✅ VALIDACIÓN 4: Verificar que tenga foto (ruta_foto)
-        if (orden.getRuta_foto() == null || orden.getRuta_foto().isEmpty()) {
+        if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+            // Captura desacoplada del flujo de validación (ícono de cámara) — se exige el
+            // mínimo calculado por getCantidadFotosParaCritica() (o 1 si no aplica ninguna
+            // crítica), sin disparar la cámara automáticamente: el usuario ya debió tomarlas
+            // con el ícono antes de llegar a guardar.
+            int minimoFotos = cantidadFotos > 0 ? cantidadFotos : 1;
+            if (orden.getFotosList().size() < minimoFotos) {
+                Log.e(TAG, "❌ Registro sin suficientes fotos");
+                mostrarToast("Debes tomar al menos " + minimoFotos +
+                        " foto(s) antes de guardar (usa el ícono de cámara)", Toast.LENGTH_LONG);
+
+                isProcessing = false;
+                btnSave.setEnabled(true);
+                return;
+            }
+        } else if (orden.getRuta_foto() == null || orden.getRuta_foto().isEmpty()) {
             Log.e(TAG, "❌ Registro sin foto");
-            Toast.makeText(getActivity(), "Debe tomar al menos una foto", Toast.LENGTH_LONG).show();
+            mostrarToast("Debe tomar al menos una foto", Toast.LENGTH_LONG);
 
             isProcessing = false;
             btnSave.setEnabled(true);
@@ -962,6 +1258,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             //Hacer el envío de la lectura al servidor
               sendDataToServer(orden);
 
+            // Facturación en Sitio (ver PLAN_FACTURACION_EN_SITIO.md Fase 8) — se evalúa aquí,
+            // ya con la lectura persistida con éxito y antes de avanzar a la siguiente orden,
+            // para no perder el estado de "orden" ni disparar reIniFragment() prematuramente.
+            ofrecerFacturacionEnSitio(orden);
+
             position++;
             if (ordenes.size() > 0) {
                 orden = (DBOrdenLecturas) allRutas.get(posicion);
@@ -1007,7 +1308,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             }
         } else {//si no se actualizó el registro se queda en la actual lectura y se envia toast notificando
             Log.d("Fragment_form_lectura", "No se pudo almacenar la lectura. Intente nuevamente.");
-            Toast.makeText(getActivity(), "No se pudo almacenar la lectura. Intente nuevamente.", Toast.LENGTH_LONG).show();
+            mostrarToast("No se pudo almacenar la lectura. Intente nuevamente.", Toast.LENGTH_LONG);
         }
 
         // ✅ Desbloquear botón y swipe
@@ -1031,13 +1332,25 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 lectura = Integer.valueOf(ordentoupload.getLectura_actual() + "");
         }
 
-        String campoFoto1 =  "";
-        if (ordentoupload.getRuta_foto()!=null) {
-            String rutaFoto = ordentoupload.getRuta_foto();
-            campoFoto1 = Utilidades.encodeImage(rutaFoto);
+        Object campoFoto;
+        if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+            // Contrato nuevo: array de fotos en base64, una por cada ruta en getFotosList()
+            // (hasta MAX_FOTOS, ya garantizado por la UI de btnCamara).
+            List<String> fotosBase64 = new ArrayList<>();
+            for (String path : ordentoupload.getFotosList()) {
+                fotosBase64.add(Utilidades.encodeImage(path));
+            }
+            campoFoto = fotosBase64;
+        } else {
+            // Contrato viejo: un solo string base64 (comportamiento sin cambios para los
+            // flavors con el flag apagado).
+            String campoFoto1 = "";
+            if (ordentoupload.getRuta_foto() != null) {
+                campoFoto1 = Utilidades.encodeImage(ordentoupload.getRuta_foto());
+            }
+            campoFoto = campoFoto1;
         }
 
-        String campoFoto = campoFoto1;
         String id = ordentoupload.getId();
         String tipo = "4";
         String finilec = ordentoupload.getFinilec();
@@ -1173,6 +1486,9 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 binding.textVsuscriptor.setText(getString(R.string.textV_suscriptor) + "    " + orden.getSuscriptor());
                 binding.textVconsecutivo.setText(getString(R.string.textV_consecutivo) + " " + orden.getConsecutivoRuta());
                 binding.textVtipo.setText(getString(R.string.textV_tipoconsumo) + " " + orden.getNservic());
+                if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                    refreshFotoBadge();
+                }
             }
 
             // 🔹 Reinicio de campos de texto
@@ -1216,7 +1532,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(getContext(), "⚠️ Error al reiniciar fragmento", Toast.LENGTH_SHORT).show();
+            mostrarToast("⚠️ Error al reiniciar fragmento", Toast.LENGTH_SHORT);
             Log.e(TAG, "Error en reIniFragment: " + e.getMessage());
         }
     }
@@ -1292,8 +1608,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                                         preparetoprint(ordenesDB);
                                     }
 
-
-                                    dispatchTakePictureIntent(ordenesDB.getId());
+                                    if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                                        continuarConFotoOGuardar(ordenesDB.getId());
+                                    } else {
+                                        dispatchTakePictureIntent(ordenesDB.getId());
+                                    }
                                 }
                             }
                         });
@@ -1352,7 +1671,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
             if (bluetoothAdapter == null) {
                 Log.d("Fragment_form_lectura", "No bluetooth adapter available");
-                Toast.makeText(getContext(), "Este dispositivo no tiene Bluetooth", Toast.LENGTH_SHORT).show();
+                mostrarToast("Este dispositivo no tiene Bluetooth", Toast.LENGTH_SHORT);
                 return;
             }
 
@@ -1396,18 +1715,18 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 }
 
                 if (bluetoothDevice == null) {
-                    Toast.makeText(getContext(), "Impresora '" + impresora + "' no encontrada. Verifique el emparejamiento.", Toast.LENGTH_LONG).show();
+                    mostrarToast("Impresora '" + impresora + "' no encontrada. Verifique el emparejamiento.", Toast.LENGTH_LONG);
                     printExist = false;
                 }
             } else {
-                Toast.makeText(getContext(), "No hay dispositivos Bluetooth emparejados", Toast.LENGTH_LONG).show();
+                mostrarToast("No hay dispositivos Bluetooth emparejados", Toast.LENGTH_LONG);
                 printExist = false;
             }
 
         } catch (Exception e) {
             e.printStackTrace();
             printExist = false;
-            Toast.makeText(getContext(), "Error al buscar impresora: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            mostrarToast("Error al buscar impresora: " + e.getMessage(), Toast.LENGTH_LONG);
         }
     }
 
@@ -1577,6 +1896,265 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
 
 
+// ===== Facturación en Sitio — ver PLAN_FACTURACION_EN_SITIO.md Fase 8/9/10 =====
+
+    // Fase 11: si esta lectura ya tenía una factura generada en sitio (se está corrigiendo una
+    // lectura ya ejecutada por error de digitación), esa factura queda ANULADA — su número no se
+    // reutiliza. Aplica tanto si se está editando (edit=true) como, por seguridad, en cualquier
+    // otro caso en que ya exista una factura activa para esta orden.
+    private String anularFacturaLocalSiExiste(String lecturaId) {
+        List activas = adminSQLiteOpenHelper.getData("factura_local",
+                "lectura_id = '" + lecturaId + "' AND estado != '" + FacturaLocal.ESTADO_ANULADA + "'");
+        if (activas.isEmpty()) {
+            return null;
+        }
+        FacturaLocal anterior = (FacturaLocal) activas.get(0);
+        anterior.setEstado(FacturaLocal.ESTADO_ANULADA);
+        adminSQLiteOpenHelper.insertFacturaLocal(anterior, true);
+        return anterior.getIdLocal();
+    }
+
+    private void ofrecerFacturacionEnSitio(DBOrdenLecturas ordenGuardada) {
+        // Se evalúa la anulación de una factura previa SIEMPRE, sin importar el estado del
+        // toggle: si la lectura cambió, la factura ya impresa con el valor viejo dejó de ser
+        // válida, independientemente de si se va a ofrecer una nueva.
+        final String facturaAnuladaIdLocal = anularFacturaLocalSiExiste(ordenGuardada.getId());
+
+        if (!SessionPrefs.get(getActivity()).isFacturacionSitioEnabled()) {
+            return; // toggle apagado: cero cambio de comportamiento respecto al flujo actual
+        }
+
+        Integer consumo = ordenGuardada.getConsumo();
+        if (consumo == null) {
+            return; // sin consumo calculado (p.ej. causa de no lectura): no aplica facturación en sitio
+        }
+
+        // Caso B de la spec: consumo negativo, siempre solo web, sin excepción — regla fija de
+        // negocio, no configurable desde el backend.
+        if (consumo < 0) {
+            return;
+        }
+
+        int promedio = ordenGuardada.getPromedio() != null ? ordenGuardada.getPromedio() : 0;
+        boolean esNormal = FacturacionServiceLocal.esConsumoNormal(consumo, promedio);
+        final String clasificacion = esNormal ? "NORMAL" : (consumo > promedio ? "ALTO" : "BAJO");
+
+        boolean permitido;
+        if (esNormal) {
+            permitido = SessionPrefs.get(getActivity()).isPermiteFacturarNormal();
+        } else if ("ALTO".equals(clasificacion)) {
+            permitido = SessionPrefs.get(getActivity()).isPermiteFacturarAlto();
+        } else {
+            permitido = SessionPrefs.get(getActivity()).isPermiteFacturarBajo();
+        }
+        // Nota: la doble confirmación de "alto/bajo correcto" ya la garantizó el switch de
+        // validación de más arriba (verificacion==2 en VALIDACION3/VALIDACION4) antes de llegar
+        // aquí — no se vuelve a pedir.
+
+        if (!permitido) {
+            return;
+        }
+
+        new AlertDialog.Builder(getActivity())
+                .setTitle("Facturación en sitio")
+                .setMessage(facturaAnuladaIdLocal != null
+                        ? "Esta lectura ya tenía una factura impresa, que quedó anulada por la corrección.\n¿Desea imprimir la factura corregida ahora?"
+                        : "¿Desea imprimir la factura ahora?")
+                .setPositiveButton("Sí", (dialog, which) ->
+                        mostrarResumenFactura(ordenGuardada, consumo, clasificacion, facturaAnuladaIdLocal))
+                .setNegativeButton("Más tarde", null)
+                .show();
+    }
+
+    private void mostrarResumenFactura(DBOrdenLecturas ordenGuardada, int consumo, String clasificacion,
+                                        String anulaAIdLocal) {
+        if (ordenGuardada.getEstratoId() == null) {
+            mostrarToast("Cliente sin estrato configurado: no se puede facturar en sitio", Toast.LENGTH_LONG);
+            return;
+        }
+
+        List cargosFijos = adminSQLiteOpenHelper.getData("tarifa_cargo_fijo", "");
+        List rangos = adminSQLiteOpenHelper.getData("tarifa_rango", "");
+        List estratos = adminSQLiteOpenHelper.getData("estrato_cache", "id = " + ordenGuardada.getEstratoId());
+        List periodosLectura = adminSQLiteOpenHelper.getData("periodo_lectura", "");
+
+        if (cargosFijos.isEmpty() || estratos.isEmpty()) {
+            mostrarToast("Tarifa no sincronizada: no se puede facturar en sitio", Toast.LENGTH_LONG);
+            return;
+        }
+
+        TarifaVigenteResponse.EstratoDTO estrato = (TarifaVigenteResponse.EstratoDTO) estratos.get(0);
+        // Fecha de vencimiento a imprimir: viene del PeriodoLectura ACTIVO cacheado (sync de
+        // tarifaVigente, agregado 2026-07-29). Puede no haber ninguno cacheado todavía si no se
+        // ha sincronizado tarifas después de ese cambio — en ese caso queda null y no se imprime.
+        TarifaVigenteResponse.PeriodoLecturaDTO periodoLectura = periodosLectura.isEmpty()
+                ? null : (TarifaVigenteResponse.PeriodoLecturaDTO) periodosLectura.get(0);
+        final FacturaCalculada factura = FacturacionServiceLocal.calcular(ordenGuardada, consumo, cargosFijos, rangos, estrato, periodoLectura);
+
+        StringBuilder resumen = new StringBuilder();
+        resumen.append("Lectura anterior: ").append(ordenGuardada.getLA()).append(" m³<br>");
+        resumen.append("Lectura actual: ").append(ordenGuardada.getLectura_actual()).append(" m³<br>");
+        resumen.append("Consumo: ").append(consumo).append(" m³<br><br>");
+        if (factura.acueducto != null) {
+            resumen.append("Acueducto: $").append(String.format(Locale.getDefault(), "%,.0f", factura.acueducto.total)).append("<br>");
+        }
+        if (factura.alcantarillado != null) {
+            resumen.append("Alcantarillado: $").append(String.format(Locale.getDefault(), "%,.0f", factura.alcantarillado.total)).append("<br>");
+        }
+        if (factura.aseo != null) {
+            resumen.append("Aseo: $").append(String.format(Locale.getDefault(), "%,.0f", factura.aseo.total)).append("<br>");
+        }
+        if (factura.saldoAnterior > 0) {
+            resumen.append("Saldo anterior: $").append(String.format(Locale.getDefault(), "%,.0f", factura.saldoAnterior)).append("<br>");
+        }
+        resumen.append("<br><b>Total a pagar: $").append(String.format(Locale.getDefault(), "%,.0f", factura.totalAPagar)).append("</b>");
+
+        new AlertDialog.Builder(getActivity())
+                .setTitle("Resumen de factura")
+                .setMessage(Html.fromHtml(resumen.toString()))
+                .setPositiveButton("Imprimir", (dialog, which) ->
+                        generarYImprimirFactura(ordenGuardada, factura, clasificacion, anulaAIdLocal))
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    // Fase 10, revisada 2026-07-29: desde ese cambio de contrato el número de factura ya viene
+    // pre-asignado por el backend a la lectura (orden.getNumeroFactura(), descargado en
+    // medidoresout) — se usa tal cual, sin volver a tocar el servidor. El mecanismo de rango
+    // (getYConsumirSiguienteNumeroFactura/decisión 5 original) queda solo como respaldo para
+    // lecturas de períodos generados antes de esa fecha (NumeroFactura null) o casos ad-hoc.
+    // Persiste la factura local ANTES de imprimir, para no perder el registro si algo falla
+    // durante el envío por Bluetooth. anulaAIdLocal (Fase 11) enlaza con la factura anulada por
+    // corrección, o null si esta es una factura nueva sin relación con una anterior.
+    private void generarYImprimirFactura(DBOrdenLecturas ordenGuardada, FacturaCalculada factura,
+                                          String clasificacion, String anulaAIdLocal) {
+        String periodoActual = new SimpleDateFormat("yyyyMM", Locale.getDefault()).format(new Date());
+
+        String numeroFactura = ordenGuardada.getNumeroFactura();
+        if (numeroFactura == null || numeroFactura.trim().isEmpty()) {
+            Integer siguiente = adminSQLiteOpenHelper.getYConsumirSiguienteNumeroFactura(periodoActual);
+            if (siguiente == null) {
+                mostrarToast("Sin números de factura disponibles. Sincronice para obtener más.",
+                        Toast.LENGTH_LONG);
+                return;
+            }
+            numeroFactura = periodoActual + String.format(Locale.getDefault(), "%05d", siguiente);
+        }
+
+        FacturaLocal facturaLocal = new FacturaLocal(
+                UUID.randomUUID().toString(), numeroFactura, ordenGuardada.getId(), ordenGuardada.getSuscriptor(),
+                new Gson().toJson(factura), factura.totalAPagar, clasificacion,
+                new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(new Date()),
+                FacturaLocal.ESTADO_PENDIENTE_SYNC);
+        facturaLocal.setPeriodo(periodoActual);
+        facturaLocal.setLecturaAnterior(parseIntSafe(ordenGuardada.getLA()));
+        facturaLocal.setLecturaActual(ordenGuardada.getLectura_actual());
+        facturaLocal.setConsumoM3(factura.consumoM3);
+        facturaLocal.setEstratoIdUsado(ordenGuardada.getEstratoId());
+        facturaLocal.setSincronizado(false);
+        facturaLocal.setAnulaAIdLocal(anulaAIdLocal);
+
+        adminSQLiteOpenHelper.insertFacturaLocal(facturaLocal, false);
+
+        imprimirFacturaEnPapel(numeroFactura, factura, ordenGuardada);
+    }
+
+    private Integer parseIntSafe(String valor) {
+        try {
+            return valor != null ? Integer.valueOf(valor.trim()) : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    // Fase 9: envío por Bluetooth reutilizando BluetoothPrinterClient (Fase 2) y la plantilla de
+    // factura con ancho dinámico (Fase 3) — mismo patrón que printWithChannelSearch, pero con
+    // FacturaPrintTemplateBuilder en vez de prepareDataToPrint().
+    private void imprimirFacturaEnPapel(String numeroFactura, FacturaCalculada factura, DBOrdenLecturas orden) {
+        String printerName = mPrefs.getString("PREF_PRINTER_NAME", "");
+        String printerMac = mPrefs.getString("PREF_PRINTER_ADDRESS", "");
+
+        if (printerName.isEmpty() || printerMac.isEmpty()) {
+            mostrarToast("❌ Primero configura una impresora", Toast.LENGTH_SHORT);
+            return;
+        }
+        if (!hasBluetoothConnectPermission()) {
+            mostrarToast("❌ Se necesitan permisos de Bluetooth", Toast.LENGTH_SHORT);
+            return;
+        }
+
+        final int anchoMM = SessionPrefs.get(getActivity()).getPrefPrinterWidthMM();
+        final String nombreEmpresa = getString(R.string.app_name);
+
+        new Thread(() -> {
+            BluetoothPrinterClient.Connection connection = null;
+            try {
+                connection = BluetoothPrinterClient.connect(bluetoothAdapter, mPrefs, printerMac, null);
+                final java.io.OutputStream out = connection.outputStream;
+
+                String contenido = FacturaPrintTemplateBuilder.build(factura, orden, numeroFactura, anchoMM, nombreEmpresa);
+
+                out.write(new byte[]{0x1B, 0x40}); // ESC @ (Inicializar)
+
+                try {
+                    Bitmap bmp = BitmapFactory.decodeResource(getResources(), R.drawable.logoprint);
+                    if (bmp != null) {
+                        byte[] command = printPhoto(bmp);
+                        if (command != null) {
+                            out.write(ESC_ALIGN_CENTER);
+                            out.write(command);
+                        }
+                        bmp.recycle();
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Logo omitido: " + e.getMessage());
+                }
+
+                // Historial de consumo en barras — solo 80mm (72mm área imprimible), replica el
+                // gráfico de la factura de referencia (fac_muesta.jpeg). Requiere que el backend
+                // mande HistoricoConsumos (ver SOLICITUD_HISTORICO_CONSUMOS.md); si no
+                // viene, se omite sin romper la impresión del resto de la factura.
+                if (anchoMM == 80 && orden.getHistoricoConsumos() != null && !orden.getHistoricoConsumos().isEmpty()) {
+                    try {
+                        byte[] chart = HistoricoConsumoChartRenderer.buildComando(orden.getHistoricoConsumos());
+                        if (chart != null) {
+                            out.write(ESC_ALIGN_CENTER);
+                            out.write("HISTORIAL DE CONSUMO (m3)\r\n".getBytes("GBK"));
+                            out.write(chart);
+                            out.write(FEED_LINE);
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Historial de consumo omitido: " + e.getMessage());
+                    }
+                }
+
+                out.write(ESC_ALIGN_LEFT);
+                out.write(FEED_LINE);
+                out.write(contenido.getBytes("GBK"));
+                out.write(FEED_LINE);
+                out.write(FEED_LINE);
+                out.flush();
+
+                Thread.sleep(2000);
+                BluetoothPrinterClient.closeQuietly(connection);
+
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            mostrarToast("✅ Factura impresa: " + numeroFactura, Toast.LENGTH_LONG));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "❌ Error al imprimir factura", e);
+                if (getActivity() != null) {
+                    final String errorMsg = e.getMessage();
+                    getActivity().runOnUiThread(() ->
+                            mostrarToast("Error al imprimir factura: " + errorMsg, Toast.LENGTH_LONG));
+                }
+            } finally {
+                BluetoothPrinterClient.closeQuietly(connection);
+            }
+        }).start();
+    }
+
 // Imprimir
 
 
@@ -1584,6 +2162,24 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
     private void preparetoprint(DBOrdenLecturas orden) {
         // Usar la misma lógica exitosa de testPrintWithChannelSearch
         printWithChannelSearch(orden);
+    }
+
+    // Cantidad de fotos requeridas para una crítica dada, según la config descargada del backend
+    // (marca_id='FOTOS_CRITICA' en la tabla listas). Si no hay config sembrada para ese código,
+    // o el valor no es un número válido, cae en el default de 1 foto (comportamiento actual).
+    private int getCantidadFotosParaCritica(String codigoCritica, List fotosCriticaConfig) {
+        if (codigoCritica == null || fotosCriticaConfig == null) return 1;
+        for (Object item : fotosCriticaConfig) {
+            DBListas config = (DBListas) item;
+            if (codigoCritica.equals(config.getCodigo())) {
+                try {
+                    return Integer.parseInt(config.getDescripcion().trim());
+                } catch (NumberFormatException e) {
+                    return 1;
+                }
+            }
+        }
+        return 1;
     }
 
     // Verificar permisos de Bluetooth
@@ -1600,95 +2196,23 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         String printerMac = mPrefs.getString("PREF_PRINTER_ADDRESS", "");
 
         if (printerName.isEmpty() || printerMac.isEmpty()) {
-            Toast.makeText(getContext(), "❌ Primero configura una impresora", Toast.LENGTH_SHORT).show();
+            mostrarToast("❌ Primero configura una impresora", Toast.LENGTH_SHORT);
             return;
         }
 
         if (!hasBluetoothConnectPermission()) {
-            Toast.makeText(getContext(), "❌ Se necesitan permisos de Bluetooth", Toast.LENGTH_SHORT).show();
+            mostrarToast("❌ Se necesitan permisos de Bluetooth", Toast.LENGTH_SHORT);
             return;
         }
 
         new Thread(() -> {
-            BluetoothSocket tempSocket = null;
-            java.io.OutputStream tempOutputStream = null;
-            boolean connected = false;
+            BluetoothPrinterClient.Connection connection = null;
 
             try {
-                // 🔹 PASO 1: Cancelar discovery
-                if (bluetoothAdapter != null && bluetoothAdapter.isDiscovering()) {
-                    bluetoothAdapter.cancelDiscovery();
-                    Log.d(TAG, "Discovery cancelado");
-                }
-                Thread.sleep(500);
-
-                BluetoothDevice device = bluetoothAdapter.getRemoteDevice(printerMac);
-                Log.d(TAG, "📱 Conectando a: " + printerName + " (" + printerMac + ")");
-
-                // 🔹 PASO 2: Verificar si ya hay un canal guardado
-                int savedChannel = mPrefs.getInt("PREF_PRINTER_CHANNEL", 0);
-
-                if (savedChannel > 0) {
-                    Log.d(TAG, "🎯 Intentando con canal guardado: " + savedChannel);
-                    try {
-                        java.lang.reflect.Method m = device.getClass().getMethod(
-                                "createRfcommSocket",
-                                new Class[]{int.class}
-                        );
-                        tempSocket = (BluetoothSocket) m.invoke(device, savedChannel);
-                        tempSocket.connect();
-                        connected = true;
-                        Log.d(TAG, "✅ Conectado con canal guardado: " + savedChannel);
-                    } catch (Exception e) {
-                        Log.w(TAG, "⚠️ Canal guardado falló, buscando nuevo canal...");
-                        try {
-                            if (tempSocket != null) tempSocket.close();
-                        } catch (Exception ex) {}
-                    }
-                }
-
-                // 🔹 PASO 3: Si no conectó, buscar canal correcto
-                if (!connected) {
-                    for (int channel = 1; channel <= 30 && !connected; channel++) {
-                        try {
-                            Log.d(TAG, "Probando canal " + channel + "...");
-
-                            java.lang.reflect.Method m = device.getClass().getMethod(
-                                    "createRfcommSocket",
-                                    new Class[]{int.class}
-                            );
-
-                            tempSocket = (BluetoothSocket) m.invoke(device, channel);
-                            tempSocket.connect();
-
-                            // ✅ Conexión exitosa
-                            connected = true;
-                            Log.d(TAG, "✅✅✅ ÉXITO EN CANAL " + channel + " ✅✅✅");
-
-                            // 🔥 GUARDAR EL CANAL
-                            mPrefs.edit().putInt("PREF_PRINTER_CHANNEL", channel).apply();
-                            break;
-
-                        } catch (Exception e) {
-                            Log.w(TAG, "Canal " + channel + " falló");
-                            try {
-                                if (tempSocket != null) {
-                                    tempSocket.close();
-                                    tempSocket = null;
-                                }
-                            } catch (Exception ex) {}
-                        }
-                    }
-                }
-
-                // 🔹 PASO 4: Verificar si se conectó
-                if (!connected || tempSocket == null) {
-                    throw new java.io.IOException("❌ No se pudo conectar después de probar 30 canales");
-                }
-
-                // 🔹 PASO 5: Obtener OutputStream
-                tempOutputStream = tempSocket.getOutputStream();
-                final java.io.OutputStream finalOutputStream = tempOutputStream;
+                // 🔹 PASOS 1-5: cancelar discovery, resolver dispositivo, conectar
+                // (canal guardado o búsqueda 1-30) — extraído a BluetoothPrinterClient
+                connection = BluetoothPrinterClient.connect(bluetoothAdapter, mPrefs, printerMac, null);
+                final java.io.OutputStream finalOutputStream = connection.outputStream;
 
                 // 🔹 PASO 6: Preparar datos de impresión
                 String dataprint = prepareDataToPrint(orden);
@@ -1725,13 +2249,12 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 Thread.sleep(2000);
 
                 // 🔹 PASO 9: Cerrar conexión
-                finalOutputStream.close();
-                tempSocket.close();
+                BluetoothPrinterClient.closeQuietly(connection);
 
                 // 🔹 PASO 10: Notificar éxito
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "✅ Impresión completada", Toast.LENGTH_SHORT).show()
+                            mostrarToast("✅ Impresión completada", Toast.LENGTH_SHORT)
                     );
                 }
                 Log.d(TAG, "✅ Impresión completada");
@@ -1740,7 +2263,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 Log.e(TAG, "❌ Error de permisos", e);
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "❌ Error de permisos", Toast.LENGTH_LONG).show()
+                            mostrarToast("❌ Error de permisos", Toast.LENGTH_LONG)
                     );
                 }
             } catch (Exception e) {
@@ -1748,17 +2271,12 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 if (getActivity() != null) {
                     final String errorMsg = e.getMessage();
                     getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "Error al imprimir: " + errorMsg, Toast.LENGTH_LONG).show()
+                            mostrarToast("Error al imprimir: " + errorMsg, Toast.LENGTH_LONG)
                     );
                 }
             } finally {
-                // 🔹 PASO 11: Limpiar recursos
-                try {
-                    if (tempOutputStream != null) tempOutputStream.close();
-                    if (tempSocket != null) tempSocket.close();
-                } catch (Exception e) {
-                    Log.w(TAG, "Error cerrando recursos");
-                }
+                // 🔹 PASO 11: Limpiar recursos (closeQuietly es idempotente/null-safe)
+                BluetoothPrinterClient.closeQuietly(connection);
             }
         }).start();
     }
@@ -1844,7 +2362,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
             Log.d("printPhoto", "📷 Imagen original: " + imagen.getWidth() + "x" + imagen.getHeight());
 
             // ✅ LÍMITES para formato más rectangular (menos cuadrado)
-            int MAX_WIDTH = 384;   // Ancho para 58mm (cambia a 576 para 80mm)
+            int MAX_WIDTH = SessionPrefs.get(getActivity()).getPrefPrinterWidthMM() == 80 ? 576 : 384; // 58mm=384, 80mm papel -> 72mm area imprimible=576
             int MAX_HEIGHT = 200;  // ⬅️ REDUCIDO para hacerlo más rectangular (antes era 255)
 
             Bitmap processedBitmap = imagen;
@@ -1998,7 +2516,7 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 // sendEscPosOverBluetooth(macAddress, dataToPrint);
             } else {
                 Log.e("PERMISOS", "❌ Permisos de Bluetooth denegados");
-                Toast.makeText(getContext(), "Permisos de Bluetooth requeridos para imprimir", Toast.LENGTH_SHORT).show();
+                mostrarToast("Permisos de Bluetooth requeridos para imprimir", Toast.LENGTH_SHORT);
             }
         }
     }
@@ -2024,6 +2542,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         mensajesFotos.add("Tomar foto claro del motivo");
         //mensajesFotos.add("Tomar foto del Predio");
         //se deshabilita el input y con el, la opción de registrar el dato de lectura
+        // Se usa setText (no setHint) — el TextInputLayout ya tiene su propio hint fijo
+        // ("Digite lectura"), y ponerle además un hint distinto al EditText interno hace que
+        // Material Design dibuje los dos textos superpuestos. Con setText se reemplaza el
+        // contenido real y no hay conflicto con la etiqueta flotante del TextInputLayout.
+        editTextLectura.setText("Sin lectura");
         editTextLectura.setEnabled(false);
 
         //guardar la última posición elegida
@@ -2141,7 +2664,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 //manda a imprimir verificando si es el último registro asociado por contrato
                 preparetoprint(orden);
             }
-            dispatchTakePictureIntent(orden.getId());
+            if (!com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                dispatchTakePictureIntent(orden.getId());
+            } else {
+                continuarConFotoOGuardar(orden.getId());
+            }
 
         }
 
@@ -2177,7 +2704,11 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
                 //manda a imprimir verificando si es el último registro asociado por contrato
                 preparetoprint(orden);
             }
-            dispatchTakePictureIntent(orden.getId());
+            if (!com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                dispatchTakePictureIntent(orden.getId());
+            } else {
+                continuarConFotoOGuardar(orden.getId());
+            }
 
         }
     }
@@ -2353,9 +2884,8 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
         if (!canNavigate) {
             // No puede navegar, cancelar animación
             animateSwipeCancel();
-            Toast.makeText(getContext(),
-                isRight ? "📄 Primer registro" : "📄 Último registro",
-                Toast.LENGTH_SHORT).show();
+            mostrarToast(isRight ? "📄 Primer registro" : "📄 Último registro",
+                Toast.LENGTH_SHORT);
             return;
         }
 
@@ -2487,38 +3017,6 @@ public class Fragment_form_lectura extends Fragment implements MotivosNoLectura.
 
         // 🔹 Reiniciar fragmento
         reIniFragment();
-
-        // 🔹 Verificar conexión Bluetooth en un hilo separado
-        new Thread(() -> {
-            try {
-                // Si el socket es nulo o no está conectado
-                if (bluetoothSocket == null || !bluetoothSocket.isConnected()) {
-                    Log.d(TAG, "Socket nulo o cerrado, intentando reconectar Bluetooth...");
-                    boolean connected = openBTWithRetry(3000); // 3 segundos máximo
-
-                    if (!connected) {
-                        Log.e(TAG, "No se pudo conectar a la impresora");
-                        getActivity().runOnUiThread(() ->
-                                Toast.makeText(getContext(), "No se pudo conectar a la impresora", Toast.LENGTH_LONG).show()
-                        );
-                        return;
-                    }
-                }
-
-                // 🔹 Conexión lista, habilitar outputStream
-                if (outputStream != null) {
-                    Log.d(TAG, "✅ Bluetooth conectado exitosamente, socket listo");
-                } else {
-                    Log.e(TAG, "❌ OutputStream nulo, no se puede imprimir");
-                }
-
-            } catch (Exception e) {
-                Log.e(TAG, "Error al reconectar Bluetooth", e);
-                getActivity().runOnUiThread(() ->
-                        Toast.makeText(getContext(), "Error en conexión Bluetooth", Toast.LENGTH_LONG).show()
-                );
-            }
-        }).start();
     }
 
 

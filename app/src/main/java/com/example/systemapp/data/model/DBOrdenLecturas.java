@@ -1,5 +1,9 @@
 package com.example.systemapp.data.model;
+import com.google.gson.annotations.JsonAdapter;
+
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 public class DBOrdenLecturas {
 
     public String id;
@@ -43,6 +47,20 @@ public class DBOrdenLecturas {
     public String ruta_foto;
     public String finilec;
     public String ffinlec;
+
+    // Campos nuevos para Facturación en Sitio (ver PLAN_FACTURACION_EN_SITIO.md, contrato 1.1)
+    public Integer EstratoId;
+    public String ServiciosCliente;
+    @JsonAdapter(LenientBooleanAdapter.class)
+    public Boolean TieneAseo;
+    public Double SaldoAnterior;
+    // Consecutivo ya pre-asignado por el backend a esta lectura desde el 2026-07-29 — puede venir
+    // null para lecturas de períodos generados antes de esa fecha (ver rutas API actualizadas).
+    public String NumeroFactura;
+    // Últimos meses de consumo (ver SOLICITUD_HISTORICO_CONSUMOS.md, campo pedido al
+    // backend) — solo para dibujar el gráfico de barras en la factura impresa en 80mm. Puede
+    // venir null/vacío si el backend aún no lo manda o no hay historial para el cliente.
+    public List<HistoricoConsumoDTO> HistoricoConsumos;
 
 
     public DBOrdenLecturas() {
@@ -306,6 +324,34 @@ public class DBOrdenLecturas {
         this.ruta_foto = ruta_foto;
     }
 
+    // Helpers sobre ruta_foto (String con rutas separadas por ", ") para el flujo de
+    // captura de fotos vía el ícono de cámara — ver PLAN de fotos por orden.
+    public List<String> getFotosList() {
+        List<String> fotos = new ArrayList<>();
+        if (ruta_foto == null || ruta_foto.trim().isEmpty()) {
+            return fotos;
+        }
+        for (String path : ruta_foto.split(",")) {
+            String trimmed = path.trim();
+            if (!trimmed.isEmpty()) {
+                fotos.add(trimmed);
+            }
+        }
+        return fotos;
+    }
+
+    public void agregarFoto(String path) {
+        List<String> fotos = getFotosList();
+        fotos.add(path);
+        ruta_foto = String.join(", ", fotos);
+    }
+
+    public void quitarFoto(String path) {
+        List<String> fotos = getFotosList();
+        fotos.remove(path);
+        ruta_foto = fotos.isEmpty() ? null : String.join(", ", fotos);
+    }
+
     public String getFinilec() {
         return finilec;
     }
@@ -354,6 +400,52 @@ public class DBOrdenLecturas {
         this.ntipcon = ntipcon;
     }
 
+    public Integer getEstratoId() {
+        return EstratoId;
+    }
 
+    public void setEstratoId(Integer estratoId) {
+        EstratoId = estratoId;
+    }
+
+    public String getServiciosCliente() {
+        return ServiciosCliente;
+    }
+
+    public void setServiciosCliente(String serviciosCliente) {
+        ServiciosCliente = serviciosCliente;
+    }
+
+    public Boolean getTieneAseo() {
+        return TieneAseo;
+    }
+
+    public void setTieneAseo(Boolean tieneAseo) {
+        TieneAseo = tieneAseo;
+    }
+
+    public Double getSaldoAnterior() {
+        return SaldoAnterior;
+    }
+
+    public void setSaldoAnterior(Double saldoAnterior) {
+        SaldoAnterior = saldoAnterior;
+    }
+
+    public String getNumeroFactura() {
+        return NumeroFactura;
+    }
+
+    public void setNumeroFactura(String numeroFactura) {
+        NumeroFactura = numeroFactura;
+    }
+
+    public List<HistoricoConsumoDTO> getHistoricoConsumos() {
+        return HistoricoConsumos;
+    }
+
+    public void setHistoricoConsumos(List<HistoricoConsumoDTO> historicoConsumos) {
+        HistoricoConsumos = historicoConsumos;
+    }
 
 }

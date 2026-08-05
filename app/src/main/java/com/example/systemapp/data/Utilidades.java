@@ -19,6 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 import okhttp3.MediaType;
@@ -174,13 +175,20 @@ public class Utilidades {
                     lectura = Integer.valueOf(ordentoupload.getLectura_actual()+"");
             }
 
-            String campoFoto1 =  "";
-            if (ordentoupload.getRuta_foto()!=null) {
-                String rutaFoto = ordentoupload.getRuta_foto();
-                campoFoto1 = Utilidades.encodeImage(rutaFoto);
+            Object campoFoto;
+            if (com.example.systemapp.BuildConfig.FOTOS_MULTIPLES_SOPORTADA) {
+                List<String> fotosBase64 = new ArrayList<>();
+                for (String path : ordentoupload.getFotosList()) {
+                    fotosBase64.add(Utilidades.encodeImage(path));
+                }
+                campoFoto = fotosBase64;
+            } else {
+                String campoFoto1 = "";
+                if (ordentoupload.getRuta_foto() != null) {
+                    campoFoto1 = Utilidades.encodeImage(ordentoupload.getRuta_foto());
+                }
+                campoFoto = campoFoto1;
             }
-
-            String campoFoto = campoFoto1;
             String id = ordentoupload.getId();
             String tipo = "4";
             String finilec = ordentoupload.getFinilec();
@@ -295,7 +303,9 @@ public class Utilidades {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 50, outputStream);
             byte[] b = outputStream.toByteArray();
-            encImage = Base64.encodeToString(b, Base64.DEFAULT);
+            // NO_WRAP evita saltos de línea embebidos en el string (más liviano, y evita
+            // depender de que el backend los ignore al decodificar).
+            encImage = Base64.encodeToString(b, Base64.NO_WRAP);
 
             // Cerrar stream
             outputStream.close();
